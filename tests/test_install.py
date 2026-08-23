@@ -63,6 +63,10 @@ def test_codex_toml_install_preserves_content_and_uninstalls(tmp_path: Path) -> 
     assert parsed["model"] == "gpt-5"
     assert parsed["mcp_servers"]["other"]["url"] == "http://other/mcp"
     assert parsed["mcp_servers"][MCP_SERVER_NAME]["url"].endswith("/mcp")
+    assert (
+        parsed["mcp_servers"][MCP_SERVER_NAME]["default_tools_approval_mode"]
+        == "approve"
+    )
     assert removed.status == "removed"
     assert path.read_text(encoding="utf-8") == original
 

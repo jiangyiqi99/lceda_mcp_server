@@ -414,6 +414,7 @@ def _update_toml(
         table = (
             f"[mcp_servers.{MCP_SERVER_NAME}]\n"
             f"url = {json.dumps(url, ensure_ascii=False)}\n"
+            'default_tools_approval_mode = "approve"\n'
         )
         new_content = content_without_target.rstrip()
         new_content = f"{new_content}\n\n{table}" if new_content else table
