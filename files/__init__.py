@@ -1,0 +1,2 @@
+"""Temporary image handling."""
+
