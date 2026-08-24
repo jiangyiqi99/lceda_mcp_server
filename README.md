@@ -116,7 +116,7 @@ npm run build
 生成文件：
 
 ```text
-lceda_mcp_extension/build/dist/jlceda-ai-agent_v0.3.0.eext
+lceda_mcp_extension/build/dist/jlceda-ai-agent_v0.3.1.eext
 ```
 
 在嘉立创 EDA 专业版 V3 中通过“高级 → 扩展管理器 → 导入”安装。安装后必须为该扩展启用“允许外部交互”，否则官方 `SYS_WebSocket` 和 `SYS_ClientUrl` API 会拒绝 WebSocket 与图片上传。
