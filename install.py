@@ -616,6 +616,45 @@ def _update_personal_marketplace(path: Path) -> tuple[str, bool]:
     return name, changed
 
 
+def _find_codex_cli(client: ClientSpec) -> str | None:
+    """Find a standalone or desktop-bundled Codex CLI executable."""
+
+    on_path = shutil.which("codex")
+    if on_path is not None:
+        return on_path
+
+    codex_home = client.config_path.parent
+    user_home = codex_home.parent
+    executable_name = "codex.exe" if sys.platform == "win32" else "codex"
+    candidates = [
+        codex_home / "plugins" / ".plugin-appserver" / executable_name,
+    ]
+    if sys.platform == "darwin":
+        candidates.extend(
+            [
+                user_home
+                / "Applications"
+                / "ChatGPT.app"
+                / "Contents"
+                / "Resources"
+                / "codex",
+                Path("/Applications/ChatGPT.app/Contents/Resources/codex"),
+                user_home
+                / "Applications"
+                / "Codex.app"
+                / "Contents"
+                / "Resources"
+                / "codex",
+                Path("/Applications/Codex.app/Contents/Resources/codex"),
+            ]
+        )
+
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
 def update_codex_plugin(
     client: ClientSpec,
     *,
@@ -631,9 +670,14 @@ def update_codex_plugin(
     marketplace_path = home / ".agents" / "plugins" / "marketplace.json"
     plugin_path = home / "plugins" / CODEX_PLUGIN_NAME
     source = source_dir or PLUGIN_SOURCE_DIR
-    codex = shutil.which("codex")
+    codex = _find_codex_cli(client)
     if codex is None:
-        return InstallResult("Codex plugin", plugin_path, "skipped", "codex CLI not found")
+        return InstallResult(
+            "Codex plugin",
+            plugin_path,
+            "skipped",
+            "codex CLI not found in PATH or desktop installation",
+        )
     try:
         marketplace_name = "personal"
         if marketplace_path.exists():

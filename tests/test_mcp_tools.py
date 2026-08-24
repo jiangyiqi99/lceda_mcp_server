@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -139,13 +140,19 @@ def test_every_extension_handler_has_an_mcp_tool() -> None:
     registry = ProjectRegistry()
     server = create_mcp_server(registry, RequestRouter(registry))
     tool_names = {tool.name for tool in server._tool_manager.list_tools()}
-    handler_source = (
-        Path(__file__).resolve().parents[2]
-        / "lceda_mcp_extension"
-        / "src"
-        / "commands"
-        / "index.ts"
-    ).read_text(encoding="utf-8")
+    server_root = Path(__file__).resolve().parents[1]
+    extension_root = Path(
+        os.environ.get(
+            "JLCEDA_EXTENSION_DIR",
+            server_root.parent / "lceda_mcp_extension",
+        )
+    )
+    handler_path = extension_root / "src" / "commands" / "index.ts"
+    if not handler_path.is_file():
+        pytest.skip(
+            "lceda_mcp_extension is optional; set JLCEDA_EXTENSION_DIR to test it"
+        )
+    handler_source = handler_path.read_text(encoding="utf-8")
     handler_names = set(
         re.findall(r"^\s*'([^']+)'\s*:", handler_source, flags=re.MULTILINE)
     )

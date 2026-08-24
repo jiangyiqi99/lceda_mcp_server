@@ -13,6 +13,7 @@ from install import (
     MCP_SERVER_NAME,
     ClientSpec,
     _build_parser,
+    _find_codex_cli,
     get_supported_clients,
     normalize_mcp_url,
     resolve_clients,
@@ -89,7 +90,8 @@ def test_invalid_json_is_not_overwritten(tmp_path: Path) -> None:
     assert path.read_text(encoding="utf-8") == "{ invalid"
 
 
-def test_detection_and_explicit_selection(tmp_path: Path) -> None:
+def test_detection_and_explicit_selection(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda executable: None)
     (tmp_path / ".codex").mkdir()
     supported = get_supported_clients(platform="linux", home=tmp_path, environ={})
 
@@ -195,6 +197,69 @@ def test_codex_plugin_bundles_mcp_and_skills_and_removes_legacy_config(
     assert MCP_SERVER_NAME not in tomllib.loads(config_path.read_text(encoding="utf-8")).get(
         "mcp_servers", {}
     )
+
+
+def test_codex_plugin_uses_desktop_cli_when_codex_is_not_on_path(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    config_path = home / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("", encoding="utf-8")
+    desktop_cli = home / ".codex" / "plugins" / ".plugin-appserver" / "codex"
+    desktop_cli.parent.mkdir(parents=True)
+    desktop_cli.write_text("desktop codex", encoding="utf-8")
+    desktop_cli.chmod(0o755)
+    client = ClientSpec(
+        "Codex",
+        config_path,
+        config_kind="toml",
+        config_style="codex",
+        installs_codex_plugin=True,
+    )
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(shutil, "which", lambda executable: None)
+    result = update_codex_plugin(client, run_command=fake_run)
+
+    assert result.status == "installed"
+    assert commands == [
+        [
+            str(desktop_cli),
+            "plugin",
+            "add",
+            f"{CODEX_PLUGIN_NAME}@personal",
+            "--json",
+        ]
+    ]
+
+
+def test_codex_cli_finder_uses_the_client_home_for_user_applications(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    config_path = home / ".codex" / "config.toml"
+    desktop_cli = (
+        home
+        / "Applications"
+        / "ChatGPT.app"
+        / "Contents"
+        / "Resources"
+        / "codex"
+    )
+    desktop_cli.parent.mkdir(parents=True)
+    desktop_cli.write_text("desktop codex", encoding="utf-8")
+    desktop_cli.chmod(0o755)
+    client = ClientSpec("Codex", config_path)
+
+    monkeypatch.setattr(shutil, "which", lambda executable: None)
+    monkeypatch.setattr("install.sys.platform", "darwin")
+
+    assert _find_codex_cli(client) == str(desktop_cli)
 
 
 def test_url_normalization() -> None:
