@@ -11,10 +11,12 @@ at its HTTP endpoint instead of spawning another backend process per client.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -26,6 +28,8 @@ from urllib.parse import urlparse, urlunparse
 
 MCP_SERVER_NAME = "jlceda-ai-agent"
 DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
+CODEX_PLUGIN_NAME = "lceda-schematic-skills"
+PLUGIN_SOURCE_DIR = Path(__file__).resolve().parent / CODEX_PLUGIN_NAME
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,8 @@ class ClientSpec:
     executables: tuple[str, ...] = ()
     config_kind: str = "json"
     config_style: str = "default"
+    skills_dir: Path | None = None
+    installs_codex_plugin: bool = False
 
     def is_detected(self) -> bool:
         return (
@@ -140,6 +146,7 @@ def get_supported_clients(
             markers=(_path(home, ".claude"),),
             executables=("claude",),
             config_style="claude",
+            skills_dir=_path(home, ".claude", "skills"),
         ),
         ClientSpec(
             "Cursor",
@@ -160,6 +167,7 @@ def get_supported_clients(
             executables=("codex",),
             config_kind="toml",
             config_style="codex",
+            installs_codex_plugin=True,
         ),
         ClientSpec(
             "Kimi Code",
@@ -447,6 +455,231 @@ def update_client(
         return InstallResult(client.name, client.config_path, "skipped", str(error))
 
 
+def _tree_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+        digest.update(item.relative_to(path).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(item.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _replace_tree(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging_root = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.stage.", dir=destination.parent)
+    )
+    staged = staging_root / destination.name
+    backup = destination.with_name(f".{destination.name}.backup")
+    try:
+        shutil.copytree(source, staged)
+        if backup.exists():
+            raise FileExistsError(f"stale plugin backup exists: {backup}")
+        if destination.exists():
+            os.replace(destination, backup)
+        try:
+            os.replace(staged, destination)
+        except BaseException:
+            if backup.exists():
+                os.replace(backup, destination)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
+
+
+def update_client_skills(
+    client: ClientSpec,
+    *,
+    uninstall: bool = False,
+    dry_run: bool = False,
+    source_dir: Path | None = None,
+) -> InstallResult | None:
+    """Install the shared Agent Skills for clients with a verified skill path."""
+
+    if client.skills_dir is None:
+        return None
+    source = source_dir or PLUGIN_SOURCE_DIR / "skills"
+    target = client.skills_dir
+    label = f"{client.name} skills"
+    try:
+        skill_dirs = sorted(
+            item for item in source.iterdir() if item.is_dir() and (item / "SKILL.md").is_file()
+        )
+        if not skill_dirs:
+            raise ValueError(f"no valid skills found in {source}")
+
+        changed = 0
+        for skill in skill_dirs:
+            destination = target / skill.name
+            if uninstall:
+                if not destination.exists():
+                    continue
+                changed += 1
+                if not dry_run:
+                    shutil.rmtree(destination)
+                continue
+            if destination.is_dir() and _tree_digest(destination) == _tree_digest(skill):
+                continue
+            changed += 1
+            if not dry_run:
+                _replace_tree(skill, destination)
+
+        if not changed:
+            detail = "not installed" if uninstall else "up to date"
+            return InstallResult(label, target, "unchanged", detail)
+        action = "remove" if uninstall else "install"
+        status = f"would {action}" if dry_run else "removed" if uninstall else "installed"
+        return InstallResult(label, target, status, f"{changed} skill(s)")
+    except (OSError, UnicodeError, ValueError) as error:
+        return InstallResult(label, target, "skipped", str(error))
+
+
+def _prepare_codex_plugin(source: Path, destination: Path, url: str) -> None:
+    """Copy the distributable plugin subset and bind it to the selected MCP URL."""
+
+    staging_root = Path(tempfile.mkdtemp(prefix="lceda-plugin-build."))
+    staged = staging_root / CODEX_PLUGIN_NAME
+    try:
+        (staged / ".codex-plugin").mkdir(parents=True)
+        shutil.copy2(
+            source / ".codex-plugin" / "plugin.json",
+            staged / ".codex-plugin" / "plugin.json",
+        )
+        shutil.copytree(source / "skills", staged / "skills")
+
+        mcp_config = {
+            "mcpServers": {
+                MCP_SERVER_NAME: {
+                    "type": "http",
+                    "url": url,
+                    "default_tools_approval_mode": "approve",
+                }
+            }
+        }
+        (staged / ".mcp.json").write_text(
+            json.dumps(mcp_config, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        manifest_path = staged / ".codex-plugin" / "plugin.json"
+        manifest = _read_json(manifest_path)
+        base_version = str(manifest.get("version", "1.0.0")).split("+", 1)[0]
+        source_hash = _tree_digest(staged)[:12]
+        manifest["version"] = f"{base_version}+codex.{source_hash}"
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _replace_tree(staged, destination)
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
+
+
+def _update_personal_marketplace(path: Path) -> tuple[str, bool]:
+    if path.exists():
+        marketplace = _read_json(path)
+    else:
+        marketplace = {
+            "name": "personal",
+            "interface": {"displayName": "Personal"},
+            "plugins": [],
+        }
+    name = marketplace.get("name")
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise ValueError("personal marketplace has an invalid or missing name")
+    plugins = marketplace.get("plugins")
+    if not isinstance(plugins, list):
+        raise ValueError("personal marketplace plugins must be an array")
+
+    entry = {
+        "name": CODEX_PLUGIN_NAME,
+        "source": {"source": "local", "path": f"./plugins/{CODEX_PLUGIN_NAME}"},
+        "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+        "category": "Developer Tools",
+    }
+    changed = True
+    for index, existing in enumerate(plugins):
+        if isinstance(existing, dict) and existing.get("name") == CODEX_PLUGIN_NAME:
+            changed = existing != entry
+            plugins[index] = entry
+            break
+    else:
+        plugins.append(entry)
+
+    content = json.dumps(marketplace, ensure_ascii=False, indent=2) + "\n"
+    if not path.exists() or path.read_text(encoding="utf-8") != content:
+        _atomic_write(path, content)
+        changed = True
+    return name, changed
+
+
+def update_codex_plugin(
+    client: ClientSpec,
+    *,
+    url: str = DEFAULT_MCP_URL,
+    uninstall: bool = False,
+    dry_run: bool = False,
+    source_dir: Path | None = None,
+    run_command: Any = subprocess.run,
+) -> InstallResult:
+    """Install/remove the Codex plugin that bundles this MCP server and its skills."""
+
+    home = client.config_path.parent.parent
+    marketplace_path = home / ".agents" / "plugins" / "marketplace.json"
+    plugin_path = home / "plugins" / CODEX_PLUGIN_NAME
+    source = source_dir or PLUGIN_SOURCE_DIR
+    codex = shutil.which("codex")
+    if codex is None:
+        return InstallResult("Codex plugin", plugin_path, "skipped", "codex CLI not found")
+    try:
+        marketplace_name = "personal"
+        if marketplace_path.exists():
+            marketplace = _read_json(marketplace_path)
+            value = marketplace.get("name")
+            if isinstance(value, str):
+                marketplace_name = value
+        selector = f"{CODEX_PLUGIN_NAME}@{marketplace_name}"
+        if dry_run:
+            action = "remove" if uninstall else "install"
+            return InstallResult("Codex plugin", plugin_path, f"would {action}", selector)
+
+        if not uninstall:
+            required = [
+                source / ".codex-plugin" / "plugin.json",
+                source / ".mcp.json",
+                source / "skills",
+            ]
+            missing = [str(path) for path in required if not path.exists()]
+            if missing:
+                raise ValueError(f"plugin source is incomplete: {', '.join(missing)}")
+            _prepare_codex_plugin(source, plugin_path, url)
+            marketplace_name, _ = _update_personal_marketplace(marketplace_path)
+            selector = f"{CODEX_PLUGIN_NAME}@{marketplace_name}"
+
+        command = [codex, "plugin", "remove" if uninstall else "add", selector, "--json"]
+        completed = run_command(command, capture_output=True, text=True, check=False)
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "Codex plugin command failed").strip()
+            raise ValueError(detail)
+
+        # Remove the legacy direct MCP table only after the plugin installation succeeds.
+        legacy = update_client(client, uninstall=True)
+        detail = selector
+        if legacy.status == "removed":
+            detail += "; removed legacy direct MCP config"
+        return InstallResult(
+            "Codex plugin",
+            plugin_path,
+            "removed" if uninstall else "installed",
+            detail,
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+        return InstallResult("Codex plugin", plugin_path, "skipped", str(error))
+
+
 def resolve_clients(
     supported: Sequence[ClientSpec], requested: Sequence[str]
 ) -> tuple[list[ClientSpec], list[str]]:
@@ -488,7 +721,7 @@ def resolve_clients(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Auto-detect MCP clients and configure the JLCEDA AI Agent server."
+        description="Configure the JLCEDA AI Agent MCP server and companion skills."
     )
     parser.add_argument(
         "clients",
@@ -497,13 +730,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="configure named clients instead of auto-detecting (for example: codex cursor)",
     )
     parser.add_argument("--url", default=DEFAULT_MCP_URL, help="Streamable HTTP MCP URL")
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument(
-        "--install",
-        action="store_true",
-        help="install this MCP server (the default action)",
-    )
-    action.add_argument(
+    parser.add_argument(
         "--uninstall", action="store_true", help="remove this MCP server"
     )
     parser.add_argument("--dry-run", action="store_true", help="show changes without writing files")
@@ -544,21 +771,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     changed = 0
     skipped = 0
     for client in selected:
-        result = update_client(
-            client,
-            url=url,
-            uninstall=args.uninstall,
-            dry_run=args.dry_run,
-        )
-        detail = f" ({result.detail})" if result.detail else ""
-        print(f"{result.status.capitalize():<13} {result.client}\n  {result.config_path}{detail}")
-        if result.status in {"installed", "removed", "would install", "would remove"}:
-            changed += 1
-        elif result.status == "skipped":
-            skipped += 1
+        if client.installs_codex_plugin:
+            results = [
+                update_codex_plugin(
+                    client,
+                    url=url,
+                    uninstall=args.uninstall,
+                    dry_run=args.dry_run,
+                )
+            ]
+        else:
+            mcp_result = update_client(
+                client,
+                url=url,
+                uninstall=args.uninstall,
+                dry_run=args.dry_run,
+            )
+            results = [mcp_result]
+            if mcp_result.status != "skipped":
+                skills_result = update_client_skills(
+                    client,
+                    uninstall=args.uninstall,
+                    dry_run=args.dry_run,
+                )
+                if skills_result is not None:
+                    results.append(skills_result)
+
+        for result in results:
+            detail = f" ({result.detail})" if result.detail else ""
+            print(f"{result.status.capitalize():<13} {result.client}\n  {result.config_path}{detail}")
+            if result.status in {"installed", "removed", "would install", "would remove"}:
+                changed += 1
+            elif result.status == "skipped":
+                skipped += 1
 
     if changed and not args.dry_run:
-        print("Restart the updated MCP client(s) for the change to take effect.")
+        print("Restart the updated client(s), and use a new Codex task, for changes to take effect.")
     return 1 if skipped else 0
 
 

@@ -70,7 +70,7 @@ python main.py
 
 ```bash
 cd lceda_mcp_server
-python install.py --install
+python install.py
 ```
 
 脚本支持 Claude Desktop/Code、Cursor、Windsurf、Codex、Cline、Roo Code、
@@ -78,16 +78,25 @@ Kilo Code、VS Code、Gemini CLI、OpenCode、Kimi Code、Zed 等常见 Client�
 它只自动处理已检测到的 Client，不会覆盖配置中的其他 MCP 服务；JSON 或
 TOML 无法解析时会跳过该文件。
 
+对支持 Agent Skills 且安装路径已经验证的客户端，脚本会同时安装原理图
+skills：Codex 通过 `lceda-schematic-skills` Plugin 一次安装 MCP Server 与
+skills；Claude Code 写入 MCP 配置并同步 skills 到 `~/.claude/skills`。
+其他客户端目前保持 MCP-only 安装。
+
+Codex Plugin 将该 MCP Server 的 `default_tools_approval_mode` 固定为
+`approve`。嘉立创 EDA 主程序支持直接撤销修改，因此该 Server 的工具调用
+默认无需逐次批准。
+
 ```bash
 python install.py --list                         # 查看支持项及扫描结果
-python install.py --install codex,cursor         # 指定 Client
+python install.py codex,cursor                   # 安装到指定 Client
 python install.py --url http://127.0.0.1:9000/mcp
 python install.py --dry-run                      # 只预览
-python install.py --uninstall                    # 从检测到的 Client 中移除
+python install.py --uninstall codex              # 从指定 Client 中移除
 ```
 
-写入配置后需要完全重启对应的 MCP Client。安装脚本只负责 Client 配置，
-后端服务仍需按下节所述单独启动。
+安装后需要完全重启对应的 MCP Client；Codex 应在新任务中使用新 Plugin。
+安装脚本只负责 Client/Plugin 配置，后端服务仍需按下节所述单独启动。
 
 可用环境变量：
 

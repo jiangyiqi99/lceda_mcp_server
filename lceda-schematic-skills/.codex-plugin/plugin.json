@@ -1,0 +1,23 @@
+{
+  "name": "lceda-schematic-skills",
+  "version": "1.0.0",
+  "description": "Readable LCEDA schematic workflows backed by the JLCEDA AI Agent MCP server.",
+  "author": {
+    "name": "JLCEDA AI Agent"
+  },
+  "repository": "https://github.com/jiangyiqi99/lceda_mcp_server",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "LCEDA Schematic Skills",
+    "shortDescription": "Design and review readable LCEDA schematics.",
+    "longDescription": "Combines LCEDA schematic planning, placement, routing, review workflows, and the JLCEDA AI Agent MCP tools in one Codex plugin.",
+    "developerName": "JLCEDA AI Agent",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": "Use $lceda-draw-readable-schematic with the bundled MCP tools to improve my active LCEDA schematic."
+  }
+}

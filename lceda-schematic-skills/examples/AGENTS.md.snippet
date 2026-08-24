@@ -1,0 +1,10 @@
+# LCEDA schematic work
+
+When a task creates, edits, redraws, cleans up, reviews, or beautifies an LCEDA Pro schematic, load `lceda-draw-readable-schematic` first. Load its companion LCEDA skills as directed.
+
+Hard rules:
+- Never mutate the schematic before establishing the available `lceda_mcp_server` capabilities and reading the current target sheet.
+- For beautification/refactoring, preserve the electrical topology. Capture a pre-change Netlist/topology snapshot and compare it after changes.
+- Treat LCEDA auto-layout/auto-routing as proposals, not correctness evidence.
+- Do not invent MCP tool names, arguments, component UUIDs, pin coordinates, nets, or library IDs.
+- Do not declare completion until `lceda-review-schematic` quality gates pass or any unsupported gate is explicitly reported.

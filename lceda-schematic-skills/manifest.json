@@ -1,0 +1,28 @@
+{
+  "name": "lceda-schematic-skills",
+  "version": "1.0.0",
+  "skills": [
+    "lceda-adapt-mcp-tools",
+    "lceda-beautify-schematic",
+    "lceda-compose-interface-channels",
+    "lceda-document-schematic-intent",
+    "lceda-draw-readable-schematic",
+    "lceda-establish-schematic-style",
+    "lceda-organize-power-support",
+    "lceda-place-schematic-components",
+    "lceda-plan-schematic-page",
+    "lceda-review-schematic",
+    "lceda-route-schematic-wires"
+  ],
+  "intended_transport": [
+    "https://github.com/jiangyiqi99/lceda_mcp_extension",
+    "https://github.com/jiangyiqi99/lceda_mcp_server"
+  ],
+  "official_api": "https://prodocs.lceda.cn/cn/api/reference/",
+  "policy": {
+    "hardcode_third_party_mcp_tool_names": false,
+    "beautification_preserves_topology": true,
+    "post_mutation_verification_required": true,
+    "auto_layout_is_proposal_only": true
+  }
+}

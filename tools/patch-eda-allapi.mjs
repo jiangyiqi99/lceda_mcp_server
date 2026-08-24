@@ -422,9 +422,24 @@ function patchUiRayTracer(source, file) {
 }
 
 function patchUiCreateNetLabel(source, file) {
-  if (source.includes("createNetLabel:") && source.includes("createNetLabel(e)")) {
+  if (source.includes("CodexNetLabelBridgeV2")) {
     return source;
   }
+
+  const existingBridgeRegex =
+    /static async createNetLabel\(([$\w]+)\)\{return\(await ([$\w]+)\.messageBus\.rpcCall\("extensionApi\/SCH_PrimitiveAttribute_createNetLabel",\1\)\)\.message\}/;
+  const existingBridge = new RegExp(existingBridgeRegex.source).exec(source);
+  if (existingBridge) {
+    const argument = existingBridge[1];
+    const globalState = existingBridge[2];
+    return replaceRegexOnce(
+      source,
+      existingBridgeRegex,
+      `static async createNetLabel(${argument}){let CodexNetLabelBridgeV2=(await ${globalState}.messageBus.rpcCall("extensionApi/SCH_PrimitiveAttribute_createNetLabel",${argument})).message;if(CodexNetLabelBridgeV2&&typeof CodexNetLabelBridgeV2=="object"&&CodexNetLabelBridgeV2.__CodexNetLabelError)throw new Error(CodexNetLabelBridgeV2.__CodexNetLabelError);return CodexNetLabelBridgeV2}`,
+      `${file}: existing schematic net-label UI bridge`,
+    );
+  }
+
   const classRegex =
     /var ([$\w]+)=class\{static async get\(([$\w]+)\)\{return\(await ([$\w]+)\.messageBus\.rpcCall\("extensionApi\/SCH_PrimitiveAttribute_get",\2\)\)\.message\}static async getAllPrimitiveId\(([$\w]+)\)\{return\(await \3\.messageBus\.rpcCall\("extensionApi\/SCH_PrimitiveAttribute_getAllPrimitiveId",\4\)\)\.message\}static async getAll\(([$\w]+)\)\{return \5\?\(await \3\.messageBus\.rpcCall\("extensionApi\/SCH_PrimitiveAttribute_getAll",\5\)\)\.message:\[\]\}static async modify\(/;
   const classMatch = matchRegexOnce(
@@ -440,7 +455,7 @@ function patchUiCreateNetLabel(source, file) {
     classRegex,
     (match) =>
       `${match[0].slice(0, -"static async modify(".length)}` +
-      `static async createNetLabel(${argument}){return(await ${globalState}.messageBus.rpcCall("extensionApi/SCH_PrimitiveAttribute_createNetLabel",${argument})).message}` +
+      `static async createNetLabel(${argument}){let CodexNetLabelBridgeV2=(await ${globalState}.messageBus.rpcCall("extensionApi/SCH_PrimitiveAttribute_createNetLabel",${argument})).message;if(CodexNetLabelBridgeV2&&typeof CodexNetLabelBridgeV2=="object"&&CodexNetLabelBridgeV2.__CodexNetLabelError)throw new Error(CodexNetLabelBridgeV2.__CodexNetLabelError);return CodexNetLabelBridgeV2}` +
       "static async modify(",
     `${file}: schematic net-label UI bridge`,
   );
@@ -456,7 +471,7 @@ function patchUiCreateNetLabel(source, file) {
 }
 
 function patchSchCreateNetLabel(source, file) {
-  if (source.includes("SCH_PrimitiveAttribute_createNetLabel")) {
+  if (source.includes("CodexNetLabelNativeV2")) {
     return source;
   }
 
@@ -495,6 +510,22 @@ function patchSchCreateNetLabel(source, file) {
   const documentManager = documentManagerMatch[1];
   const serializer = serializerMatch[2];
 
+  const getAllIdRouteEnd = source.indexOf(
+    '"-extensionApi/SCH_PrimitiveAttribute_getAll":',
+    getRouteEnd,
+  );
+  if (getAllIdRouteEnd <= getRouteEnd) {
+    throw new Error(`${file}: cannot locate the schematic attribute ID getter`);
+  }
+  const getAllIdRoute = source.slice(getRouteEnd, getAllIdRouteEnd);
+  const attributeTypesMatch = matchRegexOnce(
+    getAllIdRoute,
+    /instanceof ([$\w]+)\|\|[$\w]+ instanceof ([$\w]+)/,
+    `${file}: schematic attribute model types`,
+  );
+  const attributeTypeA = attributeTypesMatch[1];
+  const attributeTypeB = attributeTypesMatch[2];
+
   function getUniqueIdentifier(regex, captureIndex, label) {
     const matches = [...source.matchAll(regex)];
     const identifiers = new Set(matches.map((match) => match[captureIndex]));
@@ -516,49 +547,65 @@ function patchSchCreateNetLabel(source, file) {
     1,
     "the action guard",
   );
-  const placementFactory = getUniqueIdentifier(
-    /([$\w]+)\.createPlaceInteractive\(/g,
-    1,
-    "the net-label placement verifier",
-  );
   const pointMatch = matchRegexOnce(
     source,
     /get\[Symbol\.toStringTag\]\(\)\{return"Vector2"\}\};([$\w]+)\.ORIGIN=new \1\(0,0\);var ([$\w]+)=\1;/,
     `${file}: schematic point class`,
   );
   const pointClass = pointMatch[2];
-  const restoreMatch = matchRegexOnce(
-    source,
-    /this\.netLabelPlaceInteractive\.handler\(\);let\{success:[$\w]+\}=await ([$\w]+)\(this\.canvas\.shapeManager\)/,
-    `${file}: schematic connectivity restoration`,
-  );
-  const restoreConnectivity = restoreMatch[1];
 
   const replacement =
     `,"-extensionApi/SCH_PrimitiveAttribute_createNetLabel":async ${inputArgument}=>{` +
-    `let{x:CodexNetLabelX,y:CodexNetLabelY,net:CodexNetLabelNet}=${inputArgument}||{},CodexNetLabelDoc=${documentManager}.instance.getActiveDoc();` +
+    'let CodexNetLabelNativeV2=1,CodexNetLabelDoc,CodexNetLabelTool,CodexNetLabelStarted=!1;' +
+    'try{' +
+    `let{x:CodexNetLabelX,y:CodexNetLabelY,net:CodexNetLabelNet}=${inputArgument}||{};CodexNetLabelDoc=${documentManager}.instance.getActiveDoc();` +
     'if(!CodexNetLabelDoc||!CodexNetLabelDoc.canvas||!CodexNetLabelDoc.isSchSheetDoc())throw new Error("Please open a schematic page");' +
     'if(!Number.isFinite(CodexNetLabelX)||!Number.isFinite(CodexNetLabelY))throw new Error("Invalid net label coordinates");' +
     'if(typeof CodexNetLabelNet!="string"||!CodexNetLabelNet.length)throw new Error("Net name cannot be empty");' +
     'if(CodexNetLabelDoc.shapeManager.getDrawPlaceDisableByModelTagName("NetLabel"))throw new Error("Net label placement is disabled");' +
     `await ${actionContext}.actionRunner.tryWaitRealTimeSyncActionEnd();` +
     `if(${actionGuard}.checkOtherActionRunning())throw new Error("Another action is running");` +
-    `let CodexNetLabelModel=CodexNetLabelDoc.shapeManager.netLabel(),CodexNetLabelPoint=new ${pointClass}(CodexNetLabelX,-CodexNetLabelY);` +
-    'return CodexNetLabelModel.value=CodexNetLabelNet,CodexNetLabelModel.translateToXY(CodexNetLabelPoint.x,CodexNetLabelPoint.y),' +
-    'await CodexNetLabelDoc.shapeManager.actionRunner.run(async()=>{CodexNetLabelDoc.shapeManager.appendChild(CodexNetLabelModel);' +
-    `let CodexNetLabelPlacement=${placementFactory}.createPlaceInteractive(CodexNetLabelModel,CodexNetLabelPoint),CodexNetLabelVerification=await CodexNetLabelPlacement.verify();` +
-    'if(!CodexNetLabelVerification.success)throw new Error(CodexNetLabelVerification.message||"Net label cannot be placed at the specified position");' +
-    'CodexNetLabelDoc.shapeManager.selectManager.unSelectForInteraction(),CodexNetLabelModel.selected=!0,CodexNetLabelPlacement.handler();' +
-    `let{success:CodexNetLabelSuccess,restoreReasons:CodexNetLabelRestoreReasons}=await ${restoreConnectivity}(CodexNetLabelDoc.shapeManager);` +
-    'if(!CodexNetLabelSuccess)throw new Error(CodexNetLabelRestoreReasons.join("|"))},{history:"inherit"}),' +
-    `${serializer}(CodexNetLabelModel)}` +
-    modifyRoute[0];
+    'for(let CodexNetLabelCanvasAction of CodexNetLabelDoc.canvas.eventReactor.actions)await CodexNetLabelCanvasAction.tryCancelOrAtLastPointComplete();' +
+    'let CodexNetLabelBefore=new Set;CodexNetLabelDoc.shapeManager.idManager.idMap.forEach((CodexNetLabelValue,CodexNetLabelId)=>{(CodexNetLabelValue instanceof ' +
+    attributeTypeA +
+    '||CodexNetLabelValue instanceof ' +
+    attributeTypeB +
+    ')&&CodexNetLabelBefore.add(CodexNetLabelId)});' +
+    `let CodexNetLabelPoint=new ${pointClass}(CodexNetLabelX,-CodexNetLabelY);` +
+    'CodexNetLabelTool=CodexNetLabelDoc.canvas.placeNetLabel,CodexNetLabelTool.start(),CodexNetLabelStarted=!0;' +
+    'let CodexNetLabelModel=CodexNetLabelTool.model;if(!CodexNetLabelModel)throw new Error("Native net-label tool did not create a model");' +
+    'CodexNetLabelModel.value=CodexNetLabelNet,CodexNetLabelModel.translateToXY(CodexNetLabelPoint.x,CodexNetLabelPoint.y);' +
+    'if(!await CodexNetLabelTool.verify(CodexNetLabelPoint))throw new Error("Native net-label placement verification failed");' +
+    'await CodexNetLabelTool.end(),CodexNetLabelStarted=!!CodexNetLabelTool.action.isUnderway,CodexNetLabelDoc.canvas.cmd=null;' +
+    'if(CodexNetLabelStarted)throw new Error("Native net-label action did not finish");' +
+    'let CodexNetLabelResult=CodexNetLabelDoc.shapeManager.idManager.get(CodexNetLabelModel.id);' +
+    'if(!(CodexNetLabelResult instanceof ' +
+    attributeTypeA +
+    ')&&!(CodexNetLabelResult instanceof ' +
+    attributeTypeB +
+    ')){let CodexNetLabelBestScore=1/0;CodexNetLabelResult=void 0;CodexNetLabelDoc.shapeManager.idManager.idMap.forEach(CodexNetLabelCandidate=>{if((CodexNetLabelCandidate instanceof ' +
+    attributeTypeA +
+    '||CodexNetLabelCandidate instanceof ' +
+    attributeTypeB +
+    ')&&CodexNetLabelCandidate.parent&&CodexNetLabelCandidate.value===CodexNetLabelNet){let CodexNetLabelDX=Number(CodexNetLabelCandidate.x)-CodexNetLabelPoint.x,CodexNetLabelDY=Number(CodexNetLabelCandidate.y)-CodexNetLabelPoint.y,CodexNetLabelScore=(CodexNetLabelBefore.has(CodexNetLabelCandidate.id)?1e12:0)+CodexNetLabelDX*CodexNetLabelDX+CodexNetLabelDY*CodexNetLabelDY;CodexNetLabelScore<CodexNetLabelBestScore&&(CodexNetLabelBestScore=CodexNetLabelScore,CodexNetLabelResult=CodexNetLabelCandidate)}})}' +
+    'if(!CodexNetLabelResult||!CodexNetLabelResult.parent)throw new Error("Native placement ended without a net-label attribute");' +
+    `return ${serializer}(CodexNetLabelResult)` +
+    '}catch(CodexNetLabelError){if(CodexNetLabelStarted&&CodexNetLabelTool)try{CodexNetLabelTool.reset()}catch(CodexNetLabelCleanupError){}CodexNetLabelDoc&&CodexNetLabelDoc.canvas&&(CodexNetLabelDoc.canvas.cmd=null);return{__CodexNetLabelError:CodexNetLabelError&&CodexNetLabelError.message||String(CodexNetLabelError)}}}';
 
-  return (
-    source.slice(0, modifyRoute.index) +
-    replacement +
-    source.slice(modifyRoute.index + modifyRoute[0].length)
+  const existingRouteStart = source.indexOf(
+    ',"-extensionApi/SCH_PrimitiveAttribute_createNetLabel":',
   );
+  if (existingRouteStart >= 0) {
+    if (existingRouteStart >= modifyRoute.index) {
+      throw new Error(`${file}: malformed schematic net-label route order`);
+    }
+    return (
+      source.slice(0, existingRouteStart) +
+      replacement +
+      source.slice(modifyRoute.index)
+    );
+  }
+  return source.slice(0, modifyRoute.index) + replacement + source.slice(modifyRoute.index);
 }
 
 function verifyApiFacade(source, file) {

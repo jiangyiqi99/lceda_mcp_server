@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from broker.registry import ProjectRegistry
 from broker.router import RequestRouter
 from mcp_api.server import create_mcp_server
@@ -113,6 +115,24 @@ def test_extended_eda_tools_are_registered_with_guarded_schemas() -> None:
     via = tools["pcb.create_via"].parameters
     assert via["properties"]["via_type"]["minimum"] == 0
     assert via["properties"]["via_type"]["maximum"] == 2
+
+
+@pytest.mark.asyncio
+async def test_server_prompt_recommends_the_companion_schematic_skill() -> None:
+    registry = ProjectRegistry()
+    server = create_mcp_server(registry, RequestRouter(registry))
+
+    prompts = {prompt.name: prompt for prompt in await server.list_prompts()}
+    result = await server.get_prompt(
+        "lceda-schematic-workflow",
+        {"task": "Clean up the power page"},
+    )
+    text = result.messages[0].content.text
+
+    assert "lceda-schematic-workflow" in prompts
+    assert "lceda-draw-readable-schematic" in server.instructions
+    assert "lceda-draw-readable-schematic" in text
+    assert "Clean up the power page" in text
 
 
 def test_every_extension_handler_has_an_mcp_tool() -> None:
