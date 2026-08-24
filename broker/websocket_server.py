@@ -7,6 +7,7 @@ import logging
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from broker.events import EventBuffer
 from broker.registry import ProjectRegistry
 from broker.router import RequestRouter
 from protocol.rpc import Event, Heartbeat, ProtocolError, Registration, RpcResponse
@@ -20,12 +21,14 @@ class WebSocketBroker:
         self,
         registry: ProjectRegistry,
         router: RequestRouter,
+        events: EventBuffer,
         *,
         registration_timeout_seconds: float = 5.0,
         heartbeat_check_seconds: float = 5.0,
     ) -> None:
         self.registry = registry
         self.router = router
+        self.events = events
         self.registration_timeout_seconds = registration_timeout_seconds
         self.heartbeat_check_seconds = heartbeat_check_seconds
 
@@ -67,10 +70,18 @@ class WebSocketBroker:
                         }
                     )
                 elif isinstance(message, RpcResponse):
-                    self.router.resolve(message)
+                    if not self.router.resolve(message):
+                        logger.warning(
+                            "Ignoring late or unknown extension response; request_id=%s; "
+                            "project_id=%s; success=%s",
+                            message.id,
+                            current_project_id,
+                            message.success,
+                        )
                 elif isinstance(message, Event):
                     await self.registry.touch(message.project_id, websocket)
-                    logger.info("EDA event %s from %s", message.event, message.project_id)
+                    await self.events.append(message.project_id, message.event, message.data)
+                    logger.debug("EDA event %s from %s", message.event, message.project_id)
         except TimeoutError:
             await websocket.close(code=4408, reason="registration timeout")
         except ProtocolError as exc:
@@ -129,4 +140,3 @@ class WebSocketBroker:
                     )
                 except RuntimeError:
                     pass
-

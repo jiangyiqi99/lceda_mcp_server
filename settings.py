@@ -16,7 +16,10 @@ class Settings:
     heartbeat_check_seconds: float = 5.0
     image_ttl_seconds: float = 300.0
     max_image_bytes: int = 12 * 1024 * 1024
+    max_artifact_bytes: int = 128 * 1024 * 1024
     public_base_url: str | None = None
+    log_level: str = "INFO"
+    access_log: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -51,5 +54,13 @@ class Settings:
             max_image_bytes=int(
                 os.getenv("JLCEDA_MAX_IMAGE_BYTES", str(defaults.max_image_bytes))
             ),
+            max_artifact_bytes=int(
+                os.getenv(
+                    "JLCEDA_MAX_ARTIFACT_BYTES", str(defaults.max_artifact_bytes)
+                )
+            ),
             public_base_url=os.getenv("JLCEDA_PUBLIC_BASE_URL") or None,
+            log_level=os.getenv("JLCEDA_LOG_LEVEL", defaults.log_level).upper(),
+            access_log=os.getenv("JLCEDA_ACCESS_LOG", "").strip().lower()
+            in {"1", "true", "yes", "on"},
         )

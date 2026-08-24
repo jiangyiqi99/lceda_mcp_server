@@ -33,6 +33,22 @@ def test_reject_non_image_upload() -> None:
         assert response.status_code == 415
 
 
+def test_temporary_artifact_upload_preserves_download_name() -> None:
+    app = create_app(Settings(image_ttl_seconds=60))
+    with TestClient(app, base_url="http://127.0.0.1:8000") as client:
+        upload = client.post(
+            "/upload/artifact?filename=board.zip",
+            content=b"mock-export",
+            headers={"Content-Type": "application/zip"},
+        )
+        assert upload.status_code == 201
+        assert upload.json()["filename"] == "board.zip"
+        artifact = client.get(upload.json()["url"])
+        assert artifact.status_code == 200
+        assert artifact.content == b"mock-export"
+        assert "board.zip" in artifact.headers["content-disposition"]
+
+
 def test_schematic_connect_exposes_callable_python_parameter_names() -> None:
     app = create_app()
     with TestClient(app, base_url="http://127.0.0.1:8000") as client:

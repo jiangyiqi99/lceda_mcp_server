@@ -28,7 +28,7 @@ JLCEDA Extension API (eda.*)
 ## 目录
 
 ```text
-mcp_server/
+lceda_mcp_server/
   main.py                 # 独立服务入口
   application.py          # HTTP、WebSocket、MCP ASGI 组合
   mcp_api/                # 无状态 MCP 工具定义
@@ -37,7 +37,7 @@ mcp_server/
   files/                  # 临时图片存储
   tests/
 
-lc_extension/
+lceda_mcp_extension/
   src/main.ts
   src/websocket/          # 注册、心跳、RPC 响应、重连
   src/commands/           # schematic、PCB、DRC、capture
@@ -48,10 +48,10 @@ lc_extension/
 
 ## 启动后端
 
-项目已经使用 `mcp_server/.venv` 安装依赖：
+项目已经使用 `lceda_mcp_server/.venv` 安装依赖：
 
 ```bash
-cd mcp_server
+cd lceda_mcp_server
 source .venv/bin/activate
 python main.py
 ```
@@ -69,7 +69,7 @@ python main.py
 `jlceda-ai-agent` 服务写入相应的全局配置文件：
 
 ```bash
-cd mcp_server
+cd lceda_mcp_server
 python install.py --install
 ```
 
@@ -99,12 +99,15 @@ python install.py --uninstall                    # 从检测到的 Client 中移
 | `JLCEDA_HEARTBEAT_TIMEOUT` | `30` | 项目离线判定秒数 |
 | `JLCEDA_IMAGE_TTL` | `300` | 临时图片有效期秒数 |
 | `JLCEDA_MAX_IMAGE_BYTES` | `12582912` | 单张图片上限 |
+| `JLCEDA_MAX_ARTIFACT_BYTES` | `134217728` | 单个 EDA 导出文件上限 |
 | `JLCEDA_PUBLIC_BASE_URL` | 空 | 反向代理后对外返回的基础 URL |
+| `JLCEDA_LOG_LEVEL` | `INFO` | 服务日志级别；设为 `DEBUG` 可查看正常事件 |
+| `JLCEDA_ACCESS_LOG` | `false` | 是否记录每个 HTTP 请求；设为 `true` 可恢复 Uvicorn access log |
 
 ## 构建并安装 Extension
 
 ```bash
-cd lc_extension
+cd lceda_mcp_extension
 npm install
 npm run typecheck
 npm run build
@@ -113,7 +116,7 @@ npm run build
 生成文件：
 
 ```text
-lc_extension/build/dist/jlceda-ai-agent_v0.1.0.eext
+lceda_mcp_extension/build/dist/jlceda-ai-agent_v0.3.0.eext
 ```
 
 在嘉立创 EDA 专业版 V3 中通过“高级 → 扩展管理器 → 导入”安装。安装后必须为该扩展启用“允许外部交互”，否则官方 `SYS_WebSocket` 和 `SYS_ClientUrl` API 会拒绝 WebSocket 与图片上传。
@@ -135,25 +138,28 @@ lc_extension/src/config.ts
 
 原理图读取与检查：
 
-- `schematic.get_info`、`schematic.get_netlist`、`schematic.run_drc`
+- `schematic.get_info`、`schematic.get_primitives_bbox`
+- `schematic.get_netlist`、`schematic.run_drc`
 
 原理图器件与清理：
 
 - `schematic.place_component`、`schematic.add_component`
 - `schematic.modify_component`、`schematic.delete_components`
 - `schematic.delete_wires`、`schematic.modify_wire`、`schematic.clear`
-- `schematic.set_pin_no_connect`
+- `schematic.modify_pin`（符号编辑器中的独立引脚）
 
 原理图网络与布线：
 
 - `schematic.create_net_flag`、`schematic.create_net_port`
-- `schematic.create_net_label`、`schematic.connect_net`
+- `schematic.create_net_label`、`schematic.modify_net_label`
+- `schematic.modify_net_marker`、`schematic.connect_net`
 - `schematic.create_wire`、`schematic.connect`
 - `schematic.auto_layout`、`schematic.auto_route`
 
 PCB：
 
-- `pcb.get_info`、`pcb.place_component`、`pcb.modify_component`、`pcb.delete_components`
+- `pcb.get_info`、`pcb.get_primitives_bbox`
+- `pcb.place_component`、`pcb.modify_component`、`pcb.delete_components`
 - `pcb.create_track`、`pcb.modify_track`、`pcb.create_board_outline`
 - `pcb.create_via`、`pcb.modify_via`、`pcb.delete_routing_primitives`
 - `pcb.clear_routing`、`pcb.route_net`、`pcb.auto_route`、`pcb.auto_layout`
@@ -162,6 +168,29 @@ PCB：
 截图：
 
 - `capture.schematic`、`capture.pcb`、`capture.region`
+
+原始 EDA API 覆盖：
+
+- `eda.list_apis`、`eda.describe_api`、`eda.describe_type`：发现当前 EDA 运行时
+  能力，并返回由官方 `.d.ts` 生成的完整方法重载、枚举、接口和类型别名
+- `eda.call`：调用 `dmt_*`、`lib_*`、`pnl_*`、`sch_*`、`pcb_*` 及受控
+  `sys_*` 中的公开 API
+- `eda.call_primitive`：读取图元实例的 `getState_*`/其他实例方法，或通过
+  `toAsync()` → setters → `done()` 原子提交一组图元修改
+- `eda.export_file`、`eda.export_primitive_file`：执行返回一个或多个
+  `File/Blob` 的命名空间/图元实例 API，并取得临时下载 URL
+- `eda.subscribe`、`eda.unsubscribe`、`eda.poll_events`：事件订阅与读取
+
+`eda.call` 对可能修改工程的方法要求 `confirm_mutation=true`。需要把 File 传给导入、
+转换等 API 时，可在参数中使用
+`{"$file_base64":"...","name":"input.epro","type":"application/octet-stream"}`；
+单个内联文件上限为 8 MiB。
+
+以官方 `@jlceda/pro-api-types 0.4.15` 为准，覆盖审计会检查 95 个 EDA 顶层公开
+命名空间。目前其中 92 个可由上述通道访问；仅明确保留三个宿主级命名空间：
+`sys_ClientUrl`（任意外部请求）、`sys_FileSystem`（宿主文件系统）和
+`sys_WebSocket`（Broker 连接本身）。工程文件导入/导出仍可通过受控的
+`sys_FileManager` 与 Broker 临时文件通道完成。
 
 推荐的 AI 选型流程是：先调用 `component.search`，读取每个候选项的名称、描述、
 符号、封装、3D 模型、扩展属性以及 `library_uuid`/`device_uuid`；AI 选定后，再将
@@ -176,6 +205,14 @@ PCB：
 显式指定正交路径；默认会检查与不同网络导线的相交，并以 `WIRE_CROSSING` 拒绝
 危险操作。只有调用方明确传入 `allow_crossings=true` 时才跳过该保护。
 
+`schematic.get_info` 会为每个器件返回边界框，并为每个引脚返回相对于器件边界的
+`side`（`left`、`right`、`top`、`bottom`）。`schematic.connect_net` 默认使用
+`side=auto` 读取这个方位；创建或修改端口、网络标志、网络标签时也可以显式传入方位。
+嘉立创原始 `createNetLabel(x, y, net)` 没有方位参数，因此 Extension 会在创建后修改
+标签的旋转和对齐方式；调用方仍可用 `rotation`、`align_mode` 覆盖默认映射。
+嘉立创 API 明确不支持修改已放置器件实例的 ComponentPin；这类引脚的方位可读但
+不可直接改写。`schematic.modify_pin` 只操作符号编辑器中的独立 Pin 图元。
+
 `schematic.clear` 会删除当前图页中的已放置器件、网络标志和导线，但保留无引脚、
 无位号、无网络的图框/标题栏图元。精确清理可改用 `schematic.delete_components`
 或 `schematic.delete_wires`。
@@ -187,16 +224,19 @@ PCB：
 ## 验证
 
 ```bash
-cd mcp_server
+cd lceda_mcp_server
 .venv/bin/python -m pytest -q
 
-cd ../lc_extension
+cd ../lceda_mcp_extension
 npm audit --audit-level=moderate
+npm run audit:api
 npm run typecheck
 npm run build
 ```
 
-当前自动验证包含协议校验、Broker RPC 往返、能力检查、HTTP 图片上传/读取，以及 Extension 的官方类型检查和 `.eext` 打包。
+当前自动验证包含协议校验、Broker RPC 往返与错误诊断、能力检查、事件缓冲、HTTP
+图片/导出文件上传读取、Extension/MCP 命令面一致性，以及 Extension 的官方类型检查
+和 `.eext` 打包。
 
 ## 设计边界
 
@@ -205,6 +245,6 @@ npm run build
 - Broker 只保存在线连接、心跳时间和正在等待的请求。
 - Extension 不认识 MCP，只处理 Broker JSON RPC。
 - 不存储 AI 对话或 PCB/原理图数据。
-- 图片只存在系统临时目录并按 TTL 清理。
+- 图片和导出文件只存在系统临时目录并按 TTL 清理。
 
 嘉立创官方参考：[扩展 API 入门](https://prodocs.lceda.cn/cn/api/guide/how-to-start.html)、[调用扩展 API](https://prodocs.lceda.cn/cn/api/guide/invoke-apis.html)、[SYS_WebSocket](https://prodocs.lceda.cn/cn/api/reference/pro-api.sys_websocket.html)。

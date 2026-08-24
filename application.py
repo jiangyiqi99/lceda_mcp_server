@@ -16,8 +16,10 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 
 from broker.registry import ProjectRegistry
+from broker.events import EventBuffer
 from broker.router import RequestRouter
 from broker.websocket_server import WebSocketBroker
+from files.artifact_store import TemporaryArtifactStore
 from files.image_store import TemporaryImageStore
 from mcp_api.server import create_mcp_server
 from settings import Settings
@@ -41,14 +43,17 @@ def create_app(settings: Settings | None = None) -> Starlette:
     settings = settings or Settings.from_env()
     registry = ProjectRegistry(settings.heartbeat_timeout_seconds)
     router = RequestRouter(registry, settings.rpc_timeout_seconds)
+    events = EventBuffer()
     websocket_broker = WebSocketBroker(
         registry,
         router,
+        events,
         registration_timeout_seconds=settings.registration_timeout_seconds,
         heartbeat_check_seconds=settings.heartbeat_check_seconds,
     )
     images = TemporaryImageStore(settings.image_ttl_seconds)
-    mcp_server = create_mcp_server(registry, router)
+    artifacts = TemporaryArtifactStore(settings.image_ttl_seconds)
+    mcp_server = create_mcp_server(registry, router, events)
     mcp_app = _create_mcp_app(mcp_server)
 
     async def health(_request: Request) -> JSONResponse:
@@ -120,19 +125,75 @@ def create_app(settings: Settings | None = None) -> Starlette:
             headers={"Cache-Control": "no-store"},
         )
 
+    async def upload_artifact(request: Request) -> JSONResponse:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > settings.max_artifact_bytes:
+            return JSONResponse(
+                {"error": {"code": "ARTIFACT_TOO_LARGE", "message": "artifact is too large"}},
+                status_code=413,
+            )
+        data = await request.body()
+        if not data:
+            return JSONResponse(
+                {"error": {"code": "EMPTY_ARTIFACT", "message": "artifact body is empty"}},
+                status_code=400,
+            )
+        if len(data) > settings.max_artifact_bytes:
+            return JSONResponse(
+                {"error": {"code": "ARTIFACT_TOO_LARGE", "message": "artifact is too large"}},
+                status_code=413,
+            )
+        artifact = await artifacts.save(
+            data,
+            request.headers.get("content-type", "application/octet-stream"),
+            request.query_params.get("filename"),
+        )
+        base_url = settings.public_base_url or str(request.base_url).rstrip("/")
+        return JSONResponse(
+            {
+                "url": f"{base_url}/artifacts/{quote(artifact.artifact_id)}",
+                "filename": artifact.filename,
+                "size": len(data),
+                "expires_in": settings.image_ttl_seconds,
+            },
+            status_code=201,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def serve_artifact(request: Request) -> Response:
+        artifact = await artifacts.get(request.path_params["artifact_id"])
+        if artifact is None:
+            return JSONResponse(
+                {"error": {"code": "ARTIFACT_NOT_FOUND", "message": "artifact does not exist or has expired"}},
+                status_code=404,
+            )
+        return FileResponse(
+            artifact.path,
+            media_type=artifact.media_type,
+            filename=artifact.filename,
+            headers={"Cache-Control": "no-store"},
+        )
+
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
         async with contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(mcp_server.session_manager.run())
             heartbeat_task = asyncio.create_task(websocket_broker.monitor_heartbeats())
             image_task = asyncio.create_task(images.cleanup_loop())
+            artifact_task = asyncio.create_task(artifacts.cleanup_loop())
             try:
                 yield
             finally:
-                for task in (heartbeat_task, image_task):
+                for task in (heartbeat_task, image_task, artifact_task):
                     task.cancel()
-                await asyncio.gather(heartbeat_task, image_task, return_exceptions=True)
+                await asyncio.gather(
+                    heartbeat_task,
+                    image_task,
+                    artifact_task,
+                    return_exceptions=True,
+                )
                 await images.close()
+                await artifacts.close()
 
     inner_app = Starlette(
         debug=False,
@@ -140,6 +201,8 @@ def create_app(settings: Settings | None = None) -> Starlette:
             Route("/health", health, methods=["GET"]),
             Route("/upload/image", upload_image, methods=["POST"]),
             Route("/files/{image_id:str}", serve_image, methods=["GET"]),
+            Route("/upload/artifact", upload_artifact, methods=["POST"]),
+            Route("/artifacts/{artifact_id:str}", serve_artifact, methods=["GET"]),
             WebSocketRoute("/ws", websocket_broker.endpoint),
             Mount("/", app=mcp_app),
         ],
@@ -147,7 +210,9 @@ def create_app(settings: Settings | None = None) -> Starlette:
     )
     inner_app.state.registry = registry
     inner_app.state.router = router
+    inner_app.state.events = events
     inner_app.state.images = images
+    inner_app.state.artifacts = artifacts
 
     return CORSMiddleware(
         app=inner_app,
@@ -159,4 +224,3 @@ def create_app(settings: Settings | None = None) -> Starlette:
 
 
 app = create_app()
-
