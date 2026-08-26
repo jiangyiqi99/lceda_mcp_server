@@ -13,7 +13,7 @@ Never guess a third-party MCP tool name, argument, UUID, coordinate, enum, or re
 
 Before the first write, identify at least:
 
-`READ_COMPONENTS`, `READ_WIRES`, `READ_NETLIST`, `READ_DRC`, `PLACE_COMPONENT`, `MODIFY_COMPONENT`, `CREATE_WIRE`, `MODIFY_WIRE`, `CREATE_NET_FLAG`, `CREATE_NET_PORT`, `CREATE_TEXT`, `SAVE`.
+`READ_COMPONENTS`, `READ_WIRES`, `READ_NET_LABELS`, `READ_NETLIST`, `READ_DRC`, `PLACE_COMPONENT`, `MODIFY_COMPONENT`, `CREATE_WIRE`, `MODIFY_WIRE`, `CREATE_NET_FLAG`, `CREATE_NET_PORT`, `CREATE_NET_LABEL`, `MODIFY_NET_LABEL`, `CREATE_TEXT`, `SAVE`.
 
 Optional: library search, region read, rectangle, export/render, raw LCEDA API/script execution, auto-layout, auto-routing.
 

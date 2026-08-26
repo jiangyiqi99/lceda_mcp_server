@@ -20,7 +20,7 @@ A page cannot pass if any applicable condition fails:
 
 For a normal finished page, all applicable items must pass:
 - `diagonal_wire_segments == 0`;
-- local wires with **4+ bends == 0** unless explicitly documented as unavoidable;
+- local wires with **4+ bends == 0**. A written rationale does not waive this gate. If placement or abstraction cannot remove one, report the page as unfinished and do not declare completion;
 - obvious U-turn/zig-zag/backtracking routes == 0;
 - wrong-facing main-chain/support role components == 0 unless documented exception;
 - avoidable four-way connected junctions == 0;

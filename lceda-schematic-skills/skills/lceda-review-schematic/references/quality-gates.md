@@ -20,7 +20,7 @@ No tool, UUID, enum, library ID, net, pin position, or result was invented.
 `diagonal segment count = 0`.
 
 ### G2 — Bend complexity
-Local wires with **4+ bends = 0**, unless an explicit documented exception survives review. Three-bend wires are warnings.
+Local wires with **4+ bends = 0**. A written rationale does not waive this gate. Three-bend wires are warnings. A route that cannot meet the hard gate must return to placement or a justified non-local abstraction; otherwise report the page as unfinished and do not declare completion.
 
 ### G3 — Orientation
 `wrong-facing role component count = 0` for connectors/main-path passives/pull-decoupling branches and other components with an obvious role direction, unless intentionally exceptional.

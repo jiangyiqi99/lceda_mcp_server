@@ -7,6 +7,8 @@ description: Use when drawing or cleaning LCEDA external interfaces, connectors,
 
 REQUIRED: apply planning, placement, routing, and review skills.
 
+Read `references/interface-patterns.md` when the task includes differential pairs, connector fanout, isolation boundaries, variants, or repeated analog channels.
+
 ## Boundary geometry
 
 Keep external connectors on the page edge. Orient them so circuit-facing pins point inward where the symbol permits; do not leave the active pins facing the page boundary and compensate with U-turn wires.

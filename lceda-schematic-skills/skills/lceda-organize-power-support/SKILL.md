@@ -7,6 +7,8 @@ description: Use when arranging or reviewing LCEDA schematic power rails, ground
 
 REQUIRED: apply style + placement; use MCP adaptation for edits.
 
+Read `references/power-patterns.md` for rail stacks, decoupling ownership, pull states, source termination, clocks/resets, feedback, or multi-domain devices.
+
 ## Power/support has a default axis
 
 Use vertical semantics unless circuit function demands otherwise:

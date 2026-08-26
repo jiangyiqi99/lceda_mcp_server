@@ -10,7 +10,17 @@ This is the orchestration entry point. Always load:
 - `lceda-adapt-mcp-tools`
 - `lceda-review-schematic`
 
-For actual drawing/refinement also load placement and routing skills.
+Dispatch additional skills by task class:
+
+- new page or substantial reorganization → `lceda-plan-schematic-page`;
+- component orientation, placement, alignment, or repeated geometry → `lceda-place-schematic-components`;
+- Wire/Label/Port/NetFlag selection or route cleanup → `lceda-route-schematic-wires`;
+- power, decoupling, pulls, clocks, resets, termination, or feedback → `lceda-organize-power-support`;
+- connectors, protection, transceivers, isolation, or repeated channels → `lceda-compose-interface-channels`;
+- names, notes, expected values, test points, variants, or hierarchy labels → `lceda-document-schematic-intent`;
+- geometry-only cleanup of an existing page → `lceda-beautify-schematic`.
+
+Read `references/workflow-state-machine.md` for end-to-end drawing, substantial redraws, or cleanup that crosses multiple task classes.
 
 ## Before mutation
 

@@ -60,7 +60,7 @@ Therefore:
 
 ## Labels, ports, flags
 
-The documented component API explicitly exposes NetFlag and NetPort creation. A dedicated same-sheet Net Label creation API must not be assumed from that fact. Use the live MCP capability if one exists; otherwise preserve readable wires instead of misusing a port or plain text as an electrical label.
+The documented component API explicitly exposes NetFlag and NetPort creation. A dedicated same-sheet Net Label creation API must not be assumed from that fact. Bind `CREATE_NET_LABEL`, `MODIFY_NET_LABEL`, and `READ_NET_LABELS` only when the live MCP schemas expose the corresponding write and verification paths. After creating or modifying a label, re-read its primitive id, net identity, position, and side/orientation when available, then verify the resulting Netlist/DRC. If the capabilities are absent, preserve readable wires instead of misusing a port or plain text as an electrical label.
 
 ## Text and boundaries
 

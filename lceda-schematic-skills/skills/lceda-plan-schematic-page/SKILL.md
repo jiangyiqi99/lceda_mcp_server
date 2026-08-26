@@ -7,6 +7,8 @@ description: Use when an LCEDA schematic page is being created or substantially 
 
 REQUIRED: apply `lceda-establish-schematic-style`. If execution will use MCP, also apply `lceda-adapt-mcp-tools` before mutation.
 
+Read `references/page-planning-rubric.md` when naming/splitting pages, arranging hierarchy, or checking whether the page plan is ready to execute.
+
 ## Do not draw yet
 
 Build a page intent model:

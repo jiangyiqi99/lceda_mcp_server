@@ -49,4 +49,4 @@ if failed:
     for name,path,missing in failed:
         print(f'- {name}: {path.relative_to(root)} missing {missing}')
     sys.exit(1)
-print(f'PASS: {len(checks)}/{len(checks)} refinement checks')
+print(f'PASS: {len(checks)}/{len(checks)} geometry smoke checks')

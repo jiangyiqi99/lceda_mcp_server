@@ -72,17 +72,23 @@ cp -R skills/* ~/.claude/skills/
 python3 scripts/validate_skills.py
 ```
 
-验证器会检查：目录结构、frontmatter、Skill 名、`Use when...` description、必需 reference 文件、错误的硬编码 MCP tool 名倾向等。
+验证器会检查：目录结构、frontmatter、Skill 名、`Use when...` description、所有 reference 的可达性、Net Label 语义能力映射、严格几何策略、Plugin/manifest 一致性、全文件校验和以及单 Skill ZIP 与源目录的一致性。
+
+在 `lceda_mcp_server` 仓库中还可以运行包级回归测试：
+
+```bash
+pytest tests/test_skill_pack.py
+```
 
 行为层面的 RED/GREEN 测试见 `evals/EVALS.md`。其中故意包含“把整页 autoLayout 一下”“所有连接都换成 Net Label”“为了好看删掉去耦”等诱导，测试 Codex 是否能守住规则。
 
-LCEDA 几何规则的静态回归测试：
+LCEDA 几何规则的关键字 smoke test：
 
 ```bash
 python3 scripts/validate_geometry_refinement.py
 ```
 
-它检查方向候选、Anchor/Lane、Pin Escape、>=4 bend 回退、Label 决策树、10mil 坐标、Wire 显式 net 风险、三遍 Beautify 和 Geometry Hard Gates 是否仍存在。
+它检查方向候选、Anchor/Lane、Pin Escape、>=4 bend 回退、Label 决策树、10mil 坐标、Wire 显式 net 风险、三遍 Beautify 和 Geometry Hard Gates 的关键规则是否仍存在。该脚本只做静态 smoke 检查；策略一致性由 `validate_skills.py` 检查，行为证明仍以 `evals/EVALS.md` 的 RED/GREEN 场景为准。
 
 ## 参考来源
 
