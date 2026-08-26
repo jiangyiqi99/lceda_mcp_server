@@ -5,33 +5,36 @@ description: Use when an LCEDA schematic drawing or cleanup is about to be decla
 
 # Review an LCEDA Schematic
 
-REQUIRED: use live MCP/LCEDA reads when available. Do not grade a changed schematic solely from the plan that was intended.
+REQUIRED: use live MCP/LCEDA reads when available. Do not grade a changed schematic solely from the intended plan.
 
-## Hard gates
+## Electrical hard gates
 
 A page cannot pass if any applicable condition fails:
-
-- geometry-only task changed the electrical Netlist/topology;
+- geometry-only task changed electrical Netlist/topology;
 - new DRC errors appeared;
 - intended connections became dangling/ambiguous;
-- tool capability was missing but completion is claimed anyway;
-- text overlaps critical circuit information;
-- a mutation result was not re-read/verified.
+- a mutation result was not re-read/verified;
+- a tool/capability/result was invented.
 
-For a new design, Netlist “equality” is not applicable; instead compare against the requested connectivity/specification.
+## Geometry hard gates
+
+For a normal finished page, all applicable items must pass:
+- `diagonal_wire_segments == 0`;
+- local wires with **4+ bends == 0** unless explicitly documented as unavoidable;
+- obvious U-turn/zig-zag/backtracking routes == 0;
+- wrong-facing main-chain/support role components == 0 unless documented exception;
+- avoidable four-way connected junctions == 0;
+- repeated-channel orientation/spacing outliers == 0 unless electrically intentional;
+- critical text/label overlaps == 0.
+
+Crossings target zero. A remaining crossing requires a short reason why moving, lane shift, branch change, or justified label/port would be worse.
 
 ## Visual score
 
-Score the page with `references/quality-gates.md`. Target **≥85/100** with no hard-gate failure. Do not game the score by replacing visible topology with labels or removing necessary annotations.
+After hard gates, score with `references/quality-gates.md`. Target **>=90/100** for a freshly drawn/refined page. A numeric score cannot override a hard-gate failure.
 
-## Reader tests
+## Evidence
 
-At zoom-to-fit/render, if available:
-- 3-second test: page purpose is obvious;
-- 30-second test: power source, inputs, outputs, core IC, interfaces, debug path can be identified quickly.
+Review actual coordinates, pin geometry, wire polylines, labels/ports, Netlist, and DRC. If a render is available, add 3-second/30-second visual tests. Without a render, state that geometry review is a structural proxy.
 
-If no render/image capability exists, perform a structural proxy using coordinates, functional groups, wire geometry, and labels, and say that it is a proxy.
-
-## Finish with evidence
-
-Report what was checked: Netlist, DRC, affected regions, visual score, remaining exceptions. Never say “looks good” without stating the basis.
+Read `references/quality-gates.md` and `references/geometry-lint.md`.

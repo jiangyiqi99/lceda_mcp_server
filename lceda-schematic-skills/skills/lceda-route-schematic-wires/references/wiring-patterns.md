@@ -1,32 +1,57 @@
 # Wiring Patterns
 
-## 1. Bend budget
+## 1. Geometry invariants
 
-A local wire should usually use 0–3 bends. Four or more bends are a warning that placement or abstraction is wrong.
+For a wire vertex sequence `(x0,y0)...(xn,yn)`:
+- each adjacent pair must have `x_i == x_{i+1}` or `y_i == y_{i+1}`;
+- zero-length segments are removed;
+- collinear consecutive segments are merged;
+- a main-flow connection should not reverse X direction without a clear feedback/return reason.
 
-## 2. Crossings
+## 2. Pin escape
+
+Good:
+
+```text
+PIN ─────┐
+         │
+         └──── target
+```
+
+Bad:
+
+```text
+PIN ┐┌─┐
+    └┘ └── target
+```
+
+Keep the first segment straight and clear before a bend or branch.
+
+## 3. Bend budget
+
+Target 0–2 bends. Three bends require a concrete obstacle/clarity reason. Four or more bends are not a routing challenge; they are evidence that placement or abstraction is wrong.
+
+## 4. Crossings
 
 Decision order when a crossing appears:
-1. move one component/block;
-2. shift a wire lane;
+1. move the relevant component/block;
+2. shift a shared horizontal/vertical lane;
 3. change branch topology;
 4. use a meaningful label/port if the connection is genuinely non-local;
-5. accept a crossing only when alternatives reduce clarity.
+5. accept only an unavoidable, unambiguous crossing.
 
-Never add labels solely to “win” a crossing metric if topology becomes harder to see.
+## 5. Junctions
 
-## 3. Junctions
-
-Prefer:
+Prefer a T:
 
 ```text
 ────●────
     │
 ```
 
-over a four-direction connected cross. Avoid visually ambiguous non-connected crossings.
+Avoid a four-direction connected cross. A branch should occur after a short pin escape, not directly on the pin body.
 
-## 4. Short local topology
+## 6. Short local topology
 
 Good:
 
@@ -38,31 +63,24 @@ MCU ── R1 ──┬── ADC_IN
             GND
 ```
 
-Bad: split `MCU`, `R1`, `C1` into separate label islands.
+Bad: split MCU, R1, and C1 into disconnected label islands.
 
-## 5. Long-distance same sheet
+## 7. Long-distance same-sheet
 
-Use labels when long wires merely traverse unrelated blocks. Place label stubs at logical block edges and align them consistently.
+Use a same-sheet label only when it removes meaningless travel across unrelated visual regions and preserves network identity. Keep label stubs short, orthogonal, aligned, and pointing outward from their functional block.
 
-## 6. Cross-page
+## 8. Cross-sheet
 
-Use ports/off-page constructs with direction consistent with signal flow. Port names should be stable architectural interface names.
+Use ports/off-page constructs with `IN`, `OUT`, or `BI` matching architectural direction. Do not use a port merely because it looks like a label.
 
-## 7. Naming examples
+## 9. Critical source-side series elements
 
-Common readable forms include:
-- `UART1_TX`, `UART1_RX`
-- `SPI1_SCK`, `SPI1_MOSI`, `SPI1_MISO`, `SPI1_CS_N`
-- `I2C1_SCL`, `I2C1_SDA`
-- `ETH_TX_P`, `ETH_TX_N`
-- `RESET_N`, `INT_N`
+Keep series termination visually adjacent to the driver. Do not name the tiny pre-resistor stub as though it were the post-termination routed network unless that is the project convention.
 
-These are examples, not permission to rename an established project.
+## 10. Netlist safety
 
-## 8. Critical source-side series elements
+For beautification, geometry may change only while endpoints/net identity remain equivalent. Compare pre/post Netlist rather than trusting visual contact.
 
-When a series termination is part of signal intent, keep the resistor visually adjacent to the driver and name the net on the post-resistor side according to the project convention. This both reveals the termination and avoids misleading identity before it.
+## 11. Abstraction decision tree
 
-## 9. Netlist safety
-
-Geometry can change without electrical change only if endpoints/net identity remain equivalent. For beautification, compare pre/post Netlist rather than inferring correctness from visual contact alone.
+The full **decision tree** lives in `label-route-decision-tree.md`: same-sheet non-local identity may use a real Net Label, cross-sheet connections use NetPort/off-page constructs, and power/ground use a **Net Flag**. Never substitute one construct merely because another capability is missing.

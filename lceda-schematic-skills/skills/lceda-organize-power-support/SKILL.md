@@ -5,34 +5,30 @@ description: Use when arranging or reviewing LCEDA schematic power rails, ground
 
 # Organize Power and Supporting Circuits
 
-REQUIRED: apply `lceda-establish-schematic-style`; use `lceda-adapt-mcp-tools` for edits.
+REQUIRED: apply style + placement; use MCP adaptation for edits.
 
-## Power is visible architecture
+## Power/support has a default axis
 
-Show power relationships explicitly. Place positive rails above served circuitry and ground below; negative rails below ground where applicable. Do not hide multi-domain power intent merely to reduce visual objects.
+Use vertical semantics unless circuit function demands otherwise:
+- positive rail/reference above;
+- served node/device in the middle;
+- ground below;
+- negative rail below ground when applicable.
 
-## Decoupling belongs to an owner
+Role defaults:
+- decoupling capacitor vertical;
+- pull-up/down vertical;
+- divider branches vertical;
+- series termination horizontal with the signal path and close to source;
+- feedback path arranged compactly around the device it closes;
+- crystal/load network adjacent to oscillator pins with minimal crossing.
 
-Each local decoupling group must visibly belong to a device pin or power domain. Avoid a detached “capacitor graveyard”. Group bulk/local values by served domain, and keep annotations minimal but enough to identify the domain.
+These are defaults, not license to rotate against actual pin geometry. Use the placement skill's candidate scoring.
 
-## Support parts stay local
+## Ownership
 
-- Pull-up/down near the signal/device whose default state they define.
-- Series termination near the driver/source.
-- Crystal/load network near clock pins.
-- Feedback network near the regulator/op-amp and along its feedback path.
-- Reset support near reset pin/path.
-
-## Naming and project rules
-
-Honor existing project naming for rails, active-low signals, differential pairs, and clocks. Do not import a company-specific `VCC*` rule or another source's naming convention unless this project explicitly uses it.
-
-## Visual separation vs electrical association
-
-Use whitespace to separate power blocks from the main signal lane, but do not move support components so far that ownership is unclear.
+Every support component must have an obvious owner. Do not create capacitor/resistor graveyards. If a support part is visually closer to an unrelated circuit than to its owner, placement is suspect.
 
 ## Verification
 
-After moving power/support parts, verify the same nets still serve the same pins. DRC and Netlist are the authority; aesthetic alignment is not.
-
-Read `references/power-patterns.md` for common visual templates.
+After moves, re-read served pins/nets. Geometry cannot prove the supply or default-state connection; Netlist/DRC remain authoritative.

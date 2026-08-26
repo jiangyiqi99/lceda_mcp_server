@@ -5,38 +5,42 @@ description: Use when adding, rerouting, simplifying, or reviewing LCEDA schemat
 
 # Route LCEDA Schematic Wires
 
-REQUIRED: apply `lceda-establish-schematic-style` and `lceda-adapt-mcp-tools`. For new pages, placement must already be coherent.
+REQUIRED: apply `lceda-establish-schematic-style` and `lceda-adapt-mcp-tools`. Placement must already be coherent.
 
-## Manhattan-only default
+## Wire geometry is constrained
 
-Use horizontal and vertical wire segments. Keep each local connection visually simple. If a route needs many bends, first reconsider component placement.
+LCEDA `SCH_PrimitiveWire` uses a continuous polyline. Every segment must be orthogonal by default: consecutive vertices must share X or Y. No diagonal wire is acceptable in a finished schematic.
 
-## Preserve visible topology
+### Pin escape first
 
-A wire should show how nearby components relate. Do not replace a comprehensible chain such as
+From a pin, draw a short straight **pin escape** before the first bend, branch, or junction. Target one major visual grid; increase when the symbol is dense. Never branch directly on a crowded component outline when a short escape is possible.
 
-`MCU → Rseries → Flash`
+### Bend budget
 
-with three disconnected label stubs just to remove a line.
+- 0–2 bends: normal;
+- 3 bends: allowed only when it clearly avoids a collision/crossing;
+- **>=4 bends: fail the route** — return to placement or replace a genuinely non-local connection with the correct label/port abstraction.
 
-Use:
-- Wire for local relationship;
-- Label for meaningful network identity or distant same-sheet connection;
-- Port for sheet/module boundary;
-- Net flag/power symbol for infrastructure.
+Do not accept zig-zags, U-shaped detours, repeated direction reversals, or a route that hugs unrelated component bodies.
 
-## Crossings and branches
+## Wire vs label vs port vs net flag
 
-Target zero crossings. Prefer T-junctions. Avoid four-way connected junctions when a clearer equivalent exists. For a branch from a pin, extend a short lead first, then branch; do not crowd the pin itself with a junction.
+Apply this order:
 
-## Net naming
+1. power/ground infrastructure → NetFlag/power symbol;
+2. cross-sheet/module boundary → NetPort/off-page construct;
+3. strong local electrical relationship → visible Wire;
+4. same-sheet non-local identity that would otherwise cross unrelated blocks, create excessive length/bends, or duplicate a shared net across regions → Net Label **if the live MCP exposes a real label capability**;
+5. if label creation is unavailable, do not misuse NetPort as a cosmetic label; preserve a readable wire or report the limitation.
 
-Names must explain purpose, not coordinates/pin numbers. Follow project conventions consistently for active-low, differential pairs, clocks, buses, and power rails. Never “normalize” an existing project to a new convention without permission.
+Local topology such as `MCU → Rseries → Flash` or `signal → R → C → GND` must remain visibly traceable.
 
-## MCP routing discipline
+## Crossing and junction rules
 
-Before deleting/modifying a wire, read its ID, segment geometry, and net. When moving components, reconstruct only the affected local wires. After each batch, verify endpoint contact and net identity.
+Target zero avoidable crossings. Prefer T-junctions. Four-way connected junctions are a defect unless topology makes them clearly superior. Non-connected crossing ambiguity should be removed by moving blocks, shifting lanes, or using a justified non-local abstraction.
 
-Never trust auto-routing as proof of readability or correctness. If used, inspect and clean its result manually.
+## LCEDA net safety
 
-Read `references/wiring-patterns.md` for routing decisions and anti-patterns.
+Before creating/modifying a wire, read both endpoint pins/nets. Passing an explicit `net` to `SCH_PrimitiveWire.create(...)` can cause touching primitives without explicit network identity to follow that specified net. Therefore **never pass a net merely to make creation succeed**. Use the actual intended net and verify the created wire's `line` and `net` afterward.
+
+Read `references/wiring-patterns.md` and `references/label-route-decision-tree.md`.

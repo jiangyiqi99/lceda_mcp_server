@@ -3,53 +3,71 @@
 ## Phase 0 — Snapshot
 
 Capture, when supported:
-- current Netlist;
+- current Netlist/topology;
 - DRC result;
-- component IDs, positions, rotations;
-- wire IDs, segment geometry, nets;
+- component IDs, x/y/rotation/mirror;
+- pin geometry for moved components;
+- wire IDs, polyline geometry, nets;
 - labels/ports/text in target region.
 
-Define whether the task is **geometry-only** or allows electrical corrections. Default is geometry-only.
+Default mode is **geometry-only**.
 
-## Phase 1 — Diagnose
+## Phase 1 — Functional diagnosis
 
-Classify defects:
-- mixed functions;
-- bad signal direction;
-- misplaced supporting parts;
-- uneven spacing;
-- one-grid misalignment;
-- long wires;
-- excess bends;
-- crossings/four-way junctions;
-- label soup;
-- text collision;
-- inconsistent repeated channels;
-- overloaded page.
+Identify page purpose, main chains, block ownership, repeated channels, and support ownership before judging coordinates.
 
-## Phase 2 — Move blocks
+## Phase 2 — Orientation pass
 
-Move functional clusters before touching individual wire lanes. Preserve association between support parts and owners.
+For each suspect part:
+1. read current pins;
+2. score orthogonal candidates;
+3. choose best pin-facing/main-flow/support orientation;
+4. modify one local group;
+5. re-read pins and verify.
 
-## Phase 3 — Align internals
+Reject arbitrary rotation/mirror used only to pack space.
 
-Within each block:
-- align component anchors;
-- normalize repeated passive orientations;
-- normalize label/reference/value offsets;
-- leave pin escape room.
+## Phase 3 — Alignment/spacing pass
 
-## Phase 4 — Rebuild only affected wires
+1. establish block anchors and main/support lanes;
+2. align anchors to project rhythm/grid;
+3. make main-chain X progression monotonic;
+4. normalize repeated ΔX/ΔY;
+5. reserve pin-escape corridors;
+6. keep support parts attached to owners;
+7. separate unrelated blocks with clearly larger gaps.
 
-Use short Manhattan paths. Avoid global re-route. Every deleted wire must have an explicit replacement plan tied to the same intended net/endpoints.
+Do not touch wire abstraction yet.
 
-## Phase 5 — Reduce ambiguity
+## Phase 4 — Wiring/label pass
 
-Remove avoidable crossings and four-way junctions. Replace genuinely long non-local wires with meaningful labels/ports only where topology remains understandable.
+For each affected net:
+1. read endpoints and explicit net identity;
+2. choose Wire/Label/Port/NetFlag using the decision tree;
+3. route Wire with straight pin escape and 0–2 bends target;
+4. 3 bends require a real obstacle; `>=4` means reposition/re-abstract;
+5. eliminate diagonal segments and collinear duplicate vertices;
+6. reduce crossings and four-way junctions;
+7. re-read wire `line` and `net`.
 
-## Phase 6 — Documentation cleanup
+## Phase 5 — Text/document cleanup
 
-Fix overlapping text, normalize hierarchy, add only high-value local notes. Remove decorative frames that convey no engineering boundary only if they are not part of project standard.
+Align labels, references, values, and short annotations after geometry is stable. Do not use text position to compensate for badly placed components.
+
+## Phase 6 — Geometry lint
+
+Count or inspect:
+- diagonal segments;
+- >=4-bend local wires;
+- backtracking/U-turn routes;
+- avoidable crossings;
+- four-way junctions;
+- wrong-facing role components;
+- one-grid/one-lane alignment outliers;
+- repeated-channel position/orientation deviations;
+- label/text overlaps.
+
+Fix causes, not counts.
 
 ## Phase 7 — Invariant verification
 
@@ -58,6 +76,6 @@ For geometry-only cleanup:
 - same relevant component identities/designators;
 - no new DRC errors;
 - no newly dangling intended pins/nets;
-- repeated channels still electrically equivalent where expected.
+- repeated channels electrically equivalent where expected.
 
-If any invariant fails, identify the first changed batch and repair/revert that batch before continuing.
+If an invariant fails, repair/revert the first changed batch before continuing.

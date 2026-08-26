@@ -1,10 +1,14 @@
 # LCEDA schematic work
 
-When a task creates, edits, redraws, cleans up, reviews, or beautifies an LCEDA Pro schematic, load `lceda-draw-readable-schematic` first. Load its companion LCEDA skills as directed.
+When a task creates, edits, redraws, cleans up, reviews, or beautifies an LCEDA schematic, load `lceda-draw-readable-schematic` first and its directed companion skills.
 
 Hard rules:
-- Never mutate the schematic before establishing the available `lceda_mcp_server` capabilities and reading the current target sheet.
-- For beautification/refactoring, preserve the electrical topology. Capture a pre-change Netlist/topology snapshot and compare it after changes.
-- Treat LCEDA auto-layout/auto-routing as proposals, not correctness evidence.
-- Do not invent MCP tool names, arguments, component UUIDs, pin coordinates, nets, or library IDs.
-- Do not declare completion until `lceda-review-schematic` quality gates pass or any unsupported gate is explicitly reported.
+- Discover the actual `lceda_mcp_server` tool schemas and read the active target before writes. Never invent tool names/arguments/UUIDs/nets/pins.
+- Verify the active document is a schematic. LCEDA schematic coordinates are 10mil per unit; do not reuse PCB coordinate assumptions.
+- Before routing, read actual component pin geometry. Choose component orientation from `0/90/180/270°` candidates; mirror only with a real reason.
+- Placement precedes routing. Series path parts normally align with signal flow; decoupling/pull/divider branches normally follow vertical power semantics.
+- Finished wires are orthogonal. 0–2 bends is normal, 3 is warning, local 4+ bends fails and returns to placement/abstraction.
+- Use Wire for local topology, a real same-sheet Label for non-local identity, Port for sheet/module boundaries, and NetFlag for power/ground. Never fake a missing Label using Port/text.
+- Never force `SCH_PrimitiveWire.create(..., net)` just to make a connection succeed; explicit net can propagate to touching unnamed primitives.
+- For beautification, preserve electrical topology and use three passes: Orientation → Alignment/spacing → Wiring/label.
+- Do not declare completion until Netlist/DRC and geometry hard gates pass, or unsupported checks are explicitly reported.

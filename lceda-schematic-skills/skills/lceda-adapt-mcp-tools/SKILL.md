@@ -7,7 +7,7 @@ description: Use when an LCEDA Pro task will use lceda_mcp_server or lceda_mcp_e
 
 ## Rule: schemas are the authority
 
-Never guess a third-party MCP tool name, argument, UUID, coordinate, enum, or return shape. Inspect the MCP tools the current agent actually has and map them to the semantic capabilities in `references/mcp-capability-contract.md`.
+Never guess a third-party MCP tool name, argument, UUID, coordinate, enum, or return shape. Inspect the MCP tools Codex actually has and map them to the semantic capabilities in `references/mcp-capability-contract.md`.
 
 ## Establish a session capability map
 

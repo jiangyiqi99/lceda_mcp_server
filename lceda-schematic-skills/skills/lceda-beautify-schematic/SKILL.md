@@ -5,37 +5,42 @@ description: Use when an existing LCEDA schematic is electrically intended to re
 
 # Beautify an Existing LCEDA Schematic
 
-REQUIRED: apply `lceda-adapt-mcp-tools`, `lceda-establish-schematic-style`, and `lceda-review-schematic`.
+REQUIRED: apply `lceda-adapt-mcp-tools`, `lceda-establish-schematic-style`, `lceda-place-schematic-components`, `lceda-route-schematic-wires`, and `lceda-review-schematic`.
 
 ## Iron rule
 
-**Beautification must not change electrical intent.** Before the first mutation, capture a topology baseline: Netlist if available, plus component/wire/net state for the affected region.
+**Beautification must not change electrical intent.** Capture Netlist/topology + DRC + target-region component/wire/net state before the first mutation.
 
-## Fix causes, not symptoms
+## Do not mix cleanup dimensions
 
-Prioritize changes in this order:
+Perform three explicit passes in this order. Finish and re-read each pass before starting the next.
 
-1. functional grouping;
-2. component orientation/placement;
-3. alignment and block spacing;
-4. local wire geometry;
-5. crossing/junction cleanup;
-6. label/port cleanup;
-7. text/reference/value alignment;
-8. short intent annotations.
+### 1. Orientation pass
 
-If a wire needs many bends, move the parts before “routing prettier”. If the page is label soup, restore visible local topology rather than simply moving labels.
+Fix wrong-facing connectors, ICs, series passives, pull/decoupling branches, and inconsistent repeated-channel rotations. Use actual LCEDA pin geometry and the orientation-candidate scoring rule. Do not route yet except for temporary preservation if required by the tool.
 
-## Work in local batches
+### 2. Alignment/spacing pass
 
-Beautify one block or one channel family at a time. After each batch, re-read geometry and compare affected topology. Do not perform a whole-sheet destructive rewrite unless explicitly requested and fully verifiable.
+Normalize anchors, functional lanes, block gaps, repeated ΔX/ΔY, pin-escape room, and text/value offsets. Move blocks before individual decorative nudges.
 
-## Auto-layout policy
+### 3. Wiring/label pass
 
-Whole-sheet `autoLayout`/`autoRouting` is disabled by default. It may be tried on a disposable/copy context or tightly scoped subset only when the result can be compared and selectively kept.
+Rebuild only affected local wires. Enforce orthogonal segments, pin escape, bend budget, crossing reduction, T-junction preference, and the Wire/Label/Port/NetFlag decision tree. Convert long non-local wires to labels only when the actual MCP has a label capability.
 
-## Completion
+## Geometry lint after every pass
 
-Run the hard gates in `lceda-review-schematic`. If rendering/export is unavailable, report that visual checks were coordinate/structure-based rather than pretending to have viewed the rendered page.
+A pass is not complete while it leaves:
+- diagonal wire segments;
+- >=4-bend local routes;
+- unjustified wrong-facing main-path/support parts;
+- avoidable crossing/four-way junction clusters;
+- repeated-channel geometry drift;
+- obvious label/text collisions.
 
-Read `references/cleanup-algorithm.md` for the full pass order.
+If the only way to “fix” a route is to add bends, return to the earlier placement pass.
+
+## Work locally
+
+Beautify one functional block or repeated-channel family at a time. Re-read actual coordinates and nets after each batch. Whole-sheet autoLayout/autoRouting remains disabled by default.
+
+Read `references/cleanup-algorithm.md` for the transaction sequence.

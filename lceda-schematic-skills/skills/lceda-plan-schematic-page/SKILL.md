@@ -1,51 +1,50 @@
 ---
 name: lceda-plan-schematic-page
-description: Use when starting a new LCEDA schematic page, splitting an overloaded sheet, or deciding how functions, inputs, outputs, power domains, and hierarchy should be arranged before drawing.
+description: Use when an LCEDA schematic page is being created or substantially reorganized and its functions, inputs, outputs, power domains, and hierarchy should be arranged before drawing.
 ---
 
 # Plan an LCEDA Schematic Page
 
-REQUIRED: apply `lceda-establish-schematic-style`. If the plan will be executed through MCP, also apply `lceda-adapt-mcp-tools` before mutation.
+REQUIRED: apply `lceda-establish-schematic-style`. If execution will use MCP, also apply `lceda-adapt-mcp-tools` before mutation.
 
 ## Do not draw yet
 
-First produce a **page intent model**:
-
+Build a page intent model:
 1. one sentence: “This page implements ___.”
-2. external inputs and where they enter;
-3. external outputs and where they leave;
-4. main functional chain(s);
-5. power domains and references;
-6. supporting blocks;
-7. cross-page interfaces;
-8. repeated channels/variants;
-9. critical notes/test points.
+2. external inputs/outputs and boundary side;
+3. main functional chain(s);
+4. power domains/references;
+5. supporting blocks and their owners;
+6. cross-page interfaces;
+7. repeated channels/variants;
+8. critical notes/test points.
 
-If the page cannot be described in roughly 2–4 words, consider splitting it.
+If the page cannot be named in roughly 2–4 words, consider splitting it.
 
-## Build a functional graph
+## Convert the functional graph into lanes
 
-Represent the main path as a simple ordered graph, for example:
+For each main chain, topologically order blocks and assign increasing X anchors:
 
-`USB-C → ESD → USB-UART → MCU`
+`INPUT → CONDITIONING → PROCESSING → DRIVER → OUTPUT`
 
-Assign main blocks increasing X coordinates. Assign supply/support relations by Y: power above, local support adjacent, ground below.
+Reserve:
+- a central main-signal lane;
+- power/pull/reference lanes above;
+- ground/pull-down/support lanes below;
+- page-edge regions for external connectors;
+- clear inter-block whitespace larger than block-internal spacing.
 
-## Allocate visual regions
+Bidirectional and feedback paths are explicit exceptions, not excuses for arbitrary placement.
 
-Use whitespace, not decorative boxes, as the default boundary. Reserve margins around the sheet. Give the main signal path the central visual lane. Put external connectors on page edges; supporting circuits should not interrupt the main reading path.
+## Plan orientation before coordinates
 
-## Decide connection abstraction
+For every anchor device, record which pin group should face upstream, downstream, power/support, or boundary. During execution, actual LCEDA pin coordinates determine the final `0/90/180/270°` orientation.
 
-Before wiring, classify connections:
+## Decide abstraction before routing
 
-- local within a block → Wire;
-- medium/long same-sheet identity → Label where it reduces noise;
+- local causal topology → Wire;
+- same-sheet non-local identity → Label when it reduces meaningless travel and label capability exists;
 - cross-sheet/module → Port;
-- power infrastructure → net flag/power symbol.
+- power/ground → NetFlag/power symbol.
 
-## Output of this skill
-
-The plan must list block order, rough regions/anchors, I/O sides, cross-page nets, and any exceptions to left→right/top→bottom. Do not place arbitrary coordinates until the actual editor grid and existing page geometry are known.
-
-Read `references/page-planning-rubric.md` for complex pages.
+Do not assign arbitrary coordinates until current page/grid geometry is read. Output block order, lanes, anchors, boundary sides, intended pin-facing directions, and abstraction decisions.
