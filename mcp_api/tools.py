@@ -305,7 +305,7 @@ def register_tools(
         add_into_bom: bool = True,
         add_into_pcb: bool = True,
     ) -> Any:
-        """Place one exact AI-selected library candidate on the active schematic."""
+        """Place a schematic component and return its exact BBox plus advisory overlap warnings."""
         return await router.request(
             project_id,
             "schematic.place_component",
@@ -343,7 +343,7 @@ def register_tools(
         add_into_bom: bool | None = None,
         add_into_pcb: bool | None = None,
     ) -> Any:
-        """Modify position, identity, display, and BOM/PCB state of a component."""
+        """Modify a schematic component and return its exact BBox plus advisory overlap warnings."""
         return await router.request(
             project_id,
             "schematic.modify_component",
@@ -684,7 +684,7 @@ def register_tools(
     async def schematic_add_component(
         project_id: str, component: dict[str, Any]
     ) -> Any:
-        """Convenience tool that searches and places the first matching component."""
+        """Place the first matching component and return its exact BBox plus advisory overlap warnings."""
         return await router.request(
             project_id,
             "schematic.add_component",
@@ -757,7 +757,7 @@ def register_tools(
 
     @server.tool(name="schematic.run_drc")
     async def schematic_run_drc(project_id: str) -> Any:
-        """Run detailed schematic design-rule checking."""
+        """Run DRC and return normalized errors/warnings with rule, net, and involved primitives."""
         return await router.request(
             project_id, "schematic.run_drc", capability="drc"
         )
@@ -783,7 +783,7 @@ def register_tools(
     async def pcb_place_component(
         project_id: str, reference: str, x: float, y: float
     ) -> Any:
-        """Move an existing PCB component to the given EDA canvas coordinates."""
+        """Move a PCB component and return its exact BBox plus advisory overlap warnings."""
         return await router.request(
             project_id,
             "pcb.place_component",
@@ -810,7 +810,7 @@ def register_tools(
         supplier_id: str | None = None,
         other_property: dict[str, Any] | None = None,
     ) -> Any:
-        """Modify PCB component placement, layer, lock, reference, or name."""
+        """Modify a PCB component and return its exact BBox plus advisory overlap warnings."""
         return await router.request(
             project_id,
             "pcb.modify_component",
@@ -1078,7 +1078,7 @@ def register_tools(
 
     @server.tool(name="pcb.run_drc")
     async def pcb_run_drc(project_id: str) -> Any:
-        """Run detailed PCB design-rule checking and return errors and warnings."""
+        """Run PCB DRC and return normalized errors/warnings with rule, net, and involved primitives."""
         return await router.request(project_id, "pcb.run_drc", capability="drc")
 
     @server.tool(name="capture.schematic")

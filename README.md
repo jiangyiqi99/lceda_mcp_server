@@ -150,6 +150,10 @@ lc_extension/src/config.ts
 - `schematic.get_info`、`schematic.get_primitives_bbox`
 - `schematic.get_netlist`、`schematic.run_drc`
 
+`schematic.run_drc` 和 `pcb.run_drc` 返回规范化的 `errors`、`warnings` 条目：每项都
+包含 `type`、`rule`、`net`、`primitives`（含 `primitiveId`、`designator`）和 `count`。
+嘉立创若仅返回聚合计数，`primitives` 会为空数组，接口不会臆造具体位置。
+
 原理图器件与清理：
 
 - `schematic.place_component`、`schematic.add_component`
@@ -173,6 +177,11 @@ PCB：
 - `pcb.create_via`、`pcb.modify_via`、`pcb.delete_routing_primitives`
 - `pcb.clear_routing`、`pcb.route_net`、`pcb.auto_route`、`pcb.auto_layout`
 - `pcb.run_drc`
+
+放置或修改元件后，原理图和 PCB 的元件接口都会返回编辑器计算的精确
+`bbox`（`minX`、`minY`、`maxX`、`maxY`）。接口同时遍历当前所有其它元件进行
+包围盒相交检查；命中时在 `overlaps` 与 `warnings`（`COMPONENT_OVERLAP`）中报告
+元件标识、位号和包围盒。警告不会拒绝、撤销或回滚本次放置/修改操作。
 
 截图：
 
