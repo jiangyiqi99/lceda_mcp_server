@@ -94,25 +94,66 @@ for alias in ("READ_NET_LABELS", "CREATE_NET_LABEL", "MODIFY_NET_LABEL"):
 
 if manifest.get("policy", {}).get("local_wire_four_plus_bends_fail") is not True:
     errors.append("manifest must declare local 4+ bend routes as failures")
-review_policy = "\n".join(
-    path.read_text(encoding="utf-8")
-    for path in (
-        SKILLS / "lceda-review-schematic" / "SKILL.md",
-        SKILLS / "lceda-review-schematic" / "references" / "quality-gates.md",
-    )
+bend_policy_paths = (
+    ROOT / "README.md",
+    ROOT / "REFINEMENT_NOTES.md",
+    ROOT / "examples" / "AGENTS.md.snippet",
+    SKILLS / "lceda-beautify-schematic" / "SKILL.md",
+    SKILLS / "lceda-beautify-schematic" / "references" / "cleanup-algorithm.md",
+    SKILLS / "lceda-draw-readable-schematic" / "SKILL.md",
+    SKILLS
+    / "lceda-draw-readable-schematic"
+    / "references"
+    / "workflow-state-machine.md",
+    SKILLS / "lceda-review-schematic" / "SKILL.md",
+    SKILLS / "lceda-review-schematic" / "references" / "geometry-lint.md",
+    SKILLS / "lceda-review-schematic" / "references" / "quality-gates.md",
+    SKILLS / "lceda-route-schematic-wires" / "SKILL.md",
+    SKILLS
+    / "lceda-route-schematic-wires"
+    / "references"
+    / "label-route-decision-tree.md",
+    SKILLS / "lceda-route-schematic-wires" / "references" / "wiring-patterns.md",
 )
-for exception_text in (
-    "unless explicitly documented as unavoidable",
-    "unless an explicit documented exception",
+waiver_pattern = re.compile(
+    r"^.*(?:4\+|>=4).*(?:unless\s+.*(?:unavoidable|exception)|"
+    r"(?:may|can)\s+(?:be\s+)?(?:accepted|retained|passed|waived)).*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+for policy_path in bend_policy_paths:
+    if waiver_pattern.search(policy_path.read_text(encoding="utf-8")):
+        errors.append(
+            f"strict local 4+ bend gate has a waiver in {policy_path.relative_to(ROOT)}"
+        )
+for review_path in (
+    SKILLS / "lceda-review-schematic" / "SKILL.md",
+    SKILLS / "lceda-review-schematic" / "references" / "quality-gates.md",
 ):
-    if exception_text in review_policy:
-        errors.append("review policy contradicts the strict local 4+ bend gate")
+    if "do not declare completion" not in review_path.read_text(encoding="utf-8"):
+        errors.append(
+            f"strict local 4+ bend gate lacks completion behavior in "
+            f"{review_path.relative_to(ROOT)}"
+        )
 
 
 checksum_path = ROOT / "CHECKSUMS.txt"
 checksums = {}
-for line in checksum_path.read_text(encoding="utf-8").splitlines():
-    digest, relative_path = line.split("  ", 1)
+checksum_pattern = re.compile(r"([0-9a-f]{64})  (.+)")
+for line_number, line in enumerate(
+    checksum_path.read_text(encoding="utf-8").splitlines(), start=1
+):
+    match = checksum_pattern.fullmatch(line)
+    if not match:
+        errors.append(f"malformed checksum line {line_number}")
+        continue
+    digest, relative_path = match.groups()
+    if relative_path in checksums:
+        errors.append(f"duplicate checksum path {relative_path}")
+        continue
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        errors.append(f"unsafe checksum path {relative_path}")
+        continue
     checksums[relative_path] = digest
 packaged_files = {
     path.relative_to(ROOT).as_posix()
@@ -129,6 +170,11 @@ for relative_path, expected_digest in checksums.items():
         errors.append(f"checksum mismatch for {relative_path}")
 
 
+archive_paths = sorted((ROOT / "individual-zips").glob("*.zip"))
+archive_names = [path.stem for path in archive_paths]
+if archive_names != skill_names:
+    errors.append("individual ZIP set does not match manifest skills")
+
 for directory in skill_dirs:
     archive_path = ROOT / "individual-zips" / f"{directory.name}.zip"
     if not archive_path.exists():
@@ -140,10 +186,12 @@ for directory in skill_dirs:
         if path.is_file()
     }
     with ZipFile(archive_path) as archive:
+        member_names = [name for name in archive.namelist() if not name.endswith("/")]
+        if len(member_names) != len(set(member_names)):
+            errors.append(f"{directory.name}: individual ZIP has duplicate members")
         archived_files = {
             name: archive.read(name)
-            for name in archive.namelist()
-            if not name.endswith("/")
+            for name in member_names
         }
     if archived_files != source_files:
         errors.append(f"{directory.name}: individual ZIP differs from skill source")

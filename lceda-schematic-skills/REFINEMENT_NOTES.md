@@ -21,7 +21,7 @@ This revision targets concrete failures observed in AI-drawn LCEDA schematics: w
 
 For a normal refined page:
 - diagonal wire segments = 0;
-- local 4+ bend wires = 0 unless explicitly unavoidable;
+- local 4+ bend wires = 0; a written rationale does not waive this gate, so unresolved cases remain unfinished;
 - wrong-facing role components = 0 unless explicitly justified;
 - avoidable four-way junctions = 0;
 - unexplained repeated-channel geometry outliers = 0;
