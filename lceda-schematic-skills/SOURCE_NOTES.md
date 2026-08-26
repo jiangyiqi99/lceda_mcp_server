@@ -34,3 +34,15 @@ The user-provided guide adds a particularly useful operational distinction: **Wi
 ## Why MCP names are not hard-coded
 
 `lceda_mcp_extension` and `lceda_mcp_server` are the intended transport, but the skills bind to semantic capabilities rather than specific third-party tool names. The server's live schemas are the authority. This prevents tool-name drift from silently breaking the workflow or encouraging the agent to hallucinate calls.
+
+## v1.1 LCEDA-specific geometry refinement
+
+The user-provided `easyeda-api` Skill adds several concrete constraints now used by this pack:
+- schematic coordinates use 0.01inch = 10mil per unit;
+- component placement exposes `x/y/rotation/mirror`;
+- `getAllPinsByPrimitiveId()` provides actual associated pin geometry for placement/orientation decisions;
+- `SCH_PrimitiveWire.create()` accepts continuous polyline coordinates and has important explicit-net propagation/conflict semantics;
+- NetPort explicitly supports `IN | OUT | BI` and is treated as an architectural port, not a generic label substitute;
+- document state/domain should be verified before schematic operations.
+
+The refinement deliberately turns qualitative rules into measurable geometry gates: orthogonality, bend counts, pin-facing orientation, anchor lanes, repeated-channel transforms, crossing/junction checks, label scope, and a three-pass cleanup order.

@@ -29,6 +29,9 @@ dist/
 *.swp
 *.swo
 
+# Local Git worktrees
+.worktrees/
+
 # Operating-system metadata
 .DS_Store
 Thumbs.db

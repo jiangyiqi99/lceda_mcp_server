@@ -11,44 +11,70 @@ Place in this order:
 
 Do not alternate “place one part → wire it → place next part”. That freezes bad early geometry.
 
-## 2. Relationship distance
+## 2. Anchor / lane model
+
+Represent every functional block with an anchor. Main-path anchors occupy a horizontal **lane** and should be monotonic in X. Supporting circuits use secondary lanes above/below their owner.
+
+Recommended hierarchy:
+
+```text
+POWER / pull-up / reference lane
+             ↓
+INPUT → CONDITIONING → CORE → DRIVER → OUTPUT
+             ↓
+GND / pull-down / local return lane
+```
+
+Do not place an unrelated block inside the visual hull of another block.
+
+## 3. Relationship distance
 
 Treat visual distance as semantic distance:
-- strong relationship: 1 local cluster;
-- same block but weak relationship: same region with whitespace;
-- separate subsystem: clear gap or separate page.
+- strong relationship → one compact local cluster;
+- same block but weaker relationship → same region with a small gap;
+- separate subsystem → gap clearly larger than the block-internal pitch or separate page.
 
-## 3. Orientation
+A detached capacitor, pull resistor, termination, or feedback resistor is a placement defect even when electrically correct.
 
-Prefer orientations that make pin direction intuitive. For passives, use the same orientation for the same role across the page. For ICs, physical package pin order is irrelevant; the placed symbol's logical pin sides should drive orientation.
+## 4. Orientation
 
-## 4. Repeated channels
+Choose orientation from pin geometry, not from symbol bounding-box aesthetics. For each candidate `0/90/180/270°`, transform relevant pin positions around the component anchor and judge which side they occupy relative to their partners.
 
-Choose an anchor point per channel and duplicate:
-- X/Y offset;
+Defaults by role:
+- two-terminal series R/L/fuse/FB on signal path → horizontal;
+- decoupling capacitor → vertical, rail above and GND below;
+- pull-up/pull-down → vertical;
+- voltage-divider legs → vertical unless the project has a strong alternate convention;
+- connector at left page boundary → circuit-facing pins point inward/right where symbol semantics allow;
+- connector at right boundary → circuit-facing pins point inward/left;
+- IC → input-oriented pin groups toward upstream, output groups toward downstream; support pins face their support lane when practical.
+
+## 5. Pin escape reserve
+
+Reserve a short clear orthogonal corridor from each actively wired pin before another component, text, branch, or unrelated wire. One major visual grid is a good default; dense symbols may need two.
+
+This reduces pin-crowded junctions and makes later routing deterministic.
+
+## 6. Repeated channel template
+
+Choose one channel as canonical and copy:
+- anchor offset;
 - component orientation;
 - local wire entry/exit points;
 - label positions;
 - reference/value offsets.
 
-Then deviations become intentional and reviewable.
+A repeated channel is allowed to differ only when the electrical function differs. Visual variation without electrical reason is a review defect.
 
-## 5. Dense-page rescue
+## 7. Dense-page rescue
 
-If a page is cluttered:
 1. identify 3–8 functional groups;
-2. move groups apart before individual parts;
-3. align block anchors;
-4. compress only within blocks;
-5. re-evaluate whether one block deserves a separate sheet.
+2. move groups apart before moving individual passives;
+3. align block anchors to lanes;
+4. orient components from pin-facing score;
+5. compress only within blocks;
+6. re-evaluate whether one block belongs on another sheet.
 
-## 6. Don't confuse schematic and PCB layout
+## 8. Don't confuse schematic and PCB layout
 
-Schematic placement communicates logic. A connector's physical location on the PCB does not force it to appear on that side of the schematic. Keep layout constraints as concise notes instead of distorting logical flow.
-
-## 7. Geometry heuristics
-
-- Main-path X coordinates should generally be monotonic.
-- Power/support branches should generally occupy Y above/below their owner.
-- Avoid placing unrelated parts inside another block's convex visual area.
-- Leave enough room around pins for a short orthogonal lead before a bend or branch.
+Schematic placement communicates logic. Physical board position does not dictate schematic direction. Keep physical constraints as concise notes rather than bending logical flow.

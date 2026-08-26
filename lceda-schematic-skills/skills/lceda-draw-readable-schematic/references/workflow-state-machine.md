@@ -3,68 +3,62 @@
 ```text
 DISCOVER_TOOLS
    ↓
-READ_TARGET
+VERIFY_SCH_DOCUMENT
    ↓
-CLASSIFY_TASK ── cleanup ─→ SNAPSHOT_TOPOLOGY → BEAUTIFY
-   │                                      │
-   └─ new/edit ─→ PLAN → PLACE → ROUTE ←─┘
-                         ↓
-                 SUPPORT/INTERFACES
-                         ↓
-                     DOCUMENT
-                         ↓
-                       REVIEW
-                   ↙ fail    pass ↘
-                REPAIR          SAVE/DONE
+READ_TARGET + PIN_GEOMETRY
+   ↓
+CLASSIFY_TASK
+   ├─ cleanup → SNAPSHOT_TOPOLOGY → ORIENT → ALIGN/SPACE → ROUTE/LABEL
+   └─ new/edit → PLAN_LANES → ORIENT → PLACE_ALL → ROUTE/LABEL
+                                      ↓
+                              SUPPORT/INTERFACES
+                                      ↓
+                                  DOCUMENT
+                                      ↓
+                               GEOMETRY_LINT
+                                      ↓
+                              NETLIST/DRC REVIEW
+                               ↙ fail      pass ↘
+                            REPAIR             SAVE/DONE
 ```
 
-## State: DISCOVER_TOOLS
-Exit condition: semantic MCP capability map is known. No invented calls.
+## DISCOVER_TOOLS
+Exit: live MCP schema is mapped to semantic reads/writes. No invented calls.
 
-## State: READ_TARGET
-Exit condition: current page/region and existing primitives are known sufficiently to avoid overwriting unknown content.
+## VERIFY_SCH_DOCUMENT
+Exit: target is an active schematic, not an assumed PCB/unknown document. Coordinate domain is known: schematic uses 10mil per unit.
 
-## State: CLASSIFY_TASK
-Classify into:
-- new page/function;
-- electrical edit;
-- geometry-only cleanup;
-- review-only.
+## READ_TARGET + PIN_GEOMETRY
+Read relevant component anchors, `rotation/mirror`, actual component pin coordinates, wires, labels/ports, and nets.
 
-This classification controls whether Netlist is expected to remain identical.
+## PLAN_LANES
+Exit: page theme, boundary sides, main-chain anchor order, support lanes, repeated-channel families, and abstraction choices are known.
 
-## State: PLAN
-Exit condition: one page theme, I/O list, main path, power/support ownership, cross-page boundary and rough block regions are established.
+## ORIENT
+Exit: directional components have been evaluated against `0/90/180/270°` candidates from actual pin geometry. Wrong-facing connectors/passives/support branches are removed before routing.
 
-## State: PLACE
-Exit condition: major blocks form readable left→right/top→bottom structure and local support parts have owners. Do not route around obviously bad placement.
+## PLACE_ALL / ALIGN/SPACE
+Exit: anchors follow grid/lanes, main-path X is monotonic where appropriate, repeated ΔX/ΔY is stable, and pin-escape room exists.
 
-## State: ROUTE
-Exit condition: local topology is visible with Manhattan paths, abstractions are appropriate, and crossings are minimized.
+## ROUTE/LABEL
+Exit:
+- no diagonal wire segments;
+- 0–2 bends is normal;
+- 3 bends is a warning;
+- local 4+ bend routes are rejected;
+- Wire/Label/Port/NetFlag selection follows semantic scope;
+- crossings/four-way junctions are minimized.
 
-## State: SUPPORT/INTERFACES
-Exit condition: power/decoupling/reset/clock/termination and boundary chains are visually coherent; repeated channels are geometrically consistent.
+## GEOMETRY_LINT
+Count/check orientation, orthogonality, bends, backtracking, crossings, junctions, alignment outliers, repeated-channel drift, and label economy. Failure returns to the earliest causal state, usually ORIENT or PLACE, not merely ROUTE.
 
-## State: DOCUMENT
-Exit condition: names, references, values, notes, expected values, variants, and test points add intent without clutter.
-
-## State: REVIEW
-Hard gates + visual score. Failure returns to the narrowest state that can fix the defect.
+## NETLIST/DRC REVIEW
+Geometry-only cleanup requires topology equivalence and no DRC regression. New electrical design is checked against requested connectivity/specification.
 
 ## Transaction rule
 
-A logical batch should resemble a transaction:
-
-`read → plan exact changes → write small batch → read back → verify → continue`
-
-If the server provides no transaction/undo primitive, smaller batches become even more important.
+`read → compute exact geometry → mutate small batch → re-read → geometry lint → topology/DRC verify`
 
 ## Automation rule
 
-`autoLayout`/`autoRouting` may propose geometry only when:
-- scope is explicit;
-- the result can be inspected;
-- topology can be verified;
-- the agent is prepared to reject/repair the output.
-
-Never run it as a substitute for planning.
+Whole-sheet autoLayout/autoRouting is not a workflow state. It may only propose disposable candidate geometry whose result is independently re-read and verified.

@@ -1,6 +1,6 @@
 {
   "name": "lceda-schematic-skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Readable LCEDA schematic workflows backed by the JLCEDA AI Agent MCP server.",
   "author": {
     "name": "JLCEDA AI Agent"

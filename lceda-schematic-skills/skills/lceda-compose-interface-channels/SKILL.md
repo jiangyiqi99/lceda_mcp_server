@@ -5,30 +5,35 @@ description: Use when drawing or cleaning LCEDA external interfaces, connectors,
 
 # Compose Interfaces and Repeated Channels
 
-REQUIRED: apply the style, planning, placement, and routing skills relevant to the page.
+REQUIRED: apply planning, placement, routing, and review skills.
 
-## Interfaces form a readable chain
+Read `references/interface-patterns.md` when the task includes differential pairs, connector fanout, isolation boundaries, variants, or repeated analog channels.
 
-Place boundary circuitry so a reader can trace, without searching the page:
+## Boundary geometry
 
-`System logic ↔ Transceiver/Conditioning ↔ Protection/Termination ↔ Connector`
+Keep external connectors on the page edge. Orient them so circuit-facing pins point inward where the symbol permits; do not leave the active pins facing the page boundary and compensate with U-turn wires.
 
-or the reverse direction when the interface is primarily an input. The external connector remains near the page/system boundary.
+Build a readable chain:
 
-## Keep protection attached to the boundary
+`Connector ↔ Protection/Termination ↔ Transceiver/Conditioning ↔ System Logic`
 
-ESD/TVS/filter/termination parts should remain visually associated with the interface they protect or condition. Do not scatter them into generic diode/resistor sections.
+For primarily input interfaces, this naturally reads left→right from the external boundary. For outputs, preserve the same spatial chain even when signal direction is opposite.
 
-## Repeated channels are visual templates
+## Protection and termination
 
-Choose one channel as the canonical pattern. Duplicate its topology, spacing, orientation, label position, and annotation placement across channels. Differences must be explainable by circuit function.
+Keep ESD/TVS/filter/termination directly attached to the interface chain. Series elements follow the horizontal main lane; shunt/return protection branches are normally vertical toward their reference/ground.
+
+## Repeated channels
+
+Choose one canonical channel and copy exact relative geometry:
+- component rotations/mirror state;
+- ΔX/ΔY;
+- wire bend topology;
+- label-stub direction/offset;
+- annotation offsets.
+
+Any visual deviation must correspond to a real electrical difference. This makes missing parts and wrong values visually obvious.
 
 ## Bidirectional interfaces
 
-For USB, Ethernet, CAN, GPIO, or other bidirectional links, do not force all arrows into a fake one-way narrative. Keep the connector at the edge and arrange TX/RX or P/N nets consistently so the block still reads as one coherent interface.
-
-## Review benefit
-
-Symmetry is a functional review aid. A missing filter cap, termination, or pull resistor should look visually wrong.
-
-Read `references/interface-patterns.md` for templates and exception handling.
+USB/Ethernet/CAN/GPIO may be bidirectional; do not force fake one-way semantics. Keep P/N or TX/RX ordering stable and the interface chain spatially coherent.

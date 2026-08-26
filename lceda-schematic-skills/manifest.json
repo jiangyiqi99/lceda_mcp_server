@@ -1,6 +1,6 @@
 {
   "name": "lceda-schematic-skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "skills": [
     "lceda-adapt-mcp-tools",
     "lceda-beautify-schematic",
@@ -23,6 +23,14 @@
     "hardcode_third_party_mcp_tool_names": false,
     "beautification_preserves_topology": true,
     "post_mutation_verification_required": true,
-    "auto_layout_is_proposal_only": true
+    "auto_layout_is_proposal_only": true,
+    "schematic_coordinate_unit_mil": 10,
+    "orthogonal_wires_required": true,
+    "local_wire_max_bends": 3,
+    "local_wire_four_plus_bends_fail": true,
+    "orientation_from_live_pin_geometry": true,
+    "net_label_scope_decision_required": true,
+    "explicit_wire_net_requires_endpoint_verification": true,
+    "refined_visual_score_target": 90
   }
 }

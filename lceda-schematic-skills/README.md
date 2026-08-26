@@ -1,8 +1,8 @@
-# LCEDA Pro × Agent Skills：优雅原理图 Skill Pack
+# LCEDA Pro × Codex：优雅原理图 Skill Pack v1.1
 
-这是一套面向 **Codex / Claude Code + `lceda_mcp_extension` + `lceda_mcp_server`** 的递进式 Agent Skills。目标不是让模型“能把网表画出来”，而是让它形成稳定的原理图视觉语言：**先理解系统，再规划页面；先摆元件，再连线；用 Wire 表达局部拓扑、用 Label/Port 表达网络身份；最后以 Netlist/DRC 不变量证明美化没有破坏电路。**
+这是一套面向 **Codex + `lceda_mcp_extension` + `lceda_mcp_server`** 的递进式 Agent Skills。目标不是让模型“能把网表画出来”，而是让它形成稳定的原理图视觉语言：**先理解系统，再规划页面；先摆元件，再连线；用 Wire 表达局部拓扑、用 Label/Port 表达网络身份；最后以 Netlist/DRC 不变量证明美化没有破坏电路。**
 
-> 重要设计决定：本包**不硬编码第三方 MCP Server 当前的 tool 名**。运行时由 `lceda-adapt-mcp-tools` 根据当前 agent 实际看到的 MCP tool schema 建立语义能力映射。这样 extension/server 改名或新增工具时，不需要重写整套 Skill。
+> 重要设计决定：本包**不硬编码第三方 MCP Server 当前的 tool 名**。运行时由 `lceda-adapt-mcp-tools` 根据 Codex 实际看到的 MCP tool schema 建立语义能力映射。这样 extension/server 改名或新增工具时，不需要重写整套 Skill。
 
 ## 递进顺序
 
@@ -11,24 +11,34 @@
 | 0 | `lceda-establish-schematic-style` | 建立“什么叫好看、清晰、专业”的视觉语法 |
 | 1 | `lceda-adapt-mcp-tools` | 识别当前 MCP 能力，并映射到 LCEDA 官方 API 能力 |
 | 2 | `lceda-plan-schematic-page` | 在动手前形成页面、功能块、I/O、信号流与电源流计划 |
-| 3 | `lceda-place-schematic-components` | 用网格、对齐、留白和功能亲和关系摆放器件 |
-| 4 | `lceda-route-schematic-wires` | 画正交导线，控制 crossing/junction/bends，选择 Wire/Label/Port |
+| 3 | `lceda-place-schematic-components` | 基于真实 Pin 几何做方向评分，用 Anchor/Lane/Grid 确定性摆放器件 |
+| 4 | `lceda-route-schematic-wires` | 以 Pin Escape + Bend Budget 路由，控制 crossing/junction，并按决策树选择 Wire/Label/Port/NetFlag |
 | 5 | `lceda-organize-power-support` | 组织电源、去耦、上下拉、时钟、复位、端接等辅助网络 |
 | 6 | `lceda-compose-interface-channels` | 画 Connector→Protection→Transceiver/Processing 链和重复通道 |
 | 7 | `lceda-document-schematic-intent` | 加人类可读的命名、注释、Expected Value、测试点与层级信息 |
 | 8 | `lceda-beautify-schematic` | 在**不改变电气拓扑**前提下重排已有原理图 |
-| 9 | `lceda-review-schematic` | Netlist/DRC + 视觉评分 + 3 秒/30 秒测试式审图 |
+| 9 | `lceda-review-schematic` | Netlist/DRC + Geometry Lint + >=90 分视觉门槛 |
 | 10 | `lceda-draw-readable-schematic` | 整页/整项目任务的总编排入口 |
+
+## v1.1 精修重点
+
+- **不再凭感觉旋转元件**：读取 `getAllPinsByPrimitiveId()` 后，在 `0/90/180/270°` 中按 pin-facing、信号流、电源语义和预期线复杂度评分。
+- **Anchor / Lane / Grid**：主链 X 单调，支持电路放稳定上下 lane，重复通道复制相同 ΔX/ΔY。
+- **Pin Escape + Bend Budget**：导线从 Pin 先直出；0–2 bend 正常，3 警告，局部 `>=4` 直接回退布局/抽象。
+- **Label 决策树**：Wire=局部拓扑；Label=同页非局部身份；Port=跨页/模块；NetFlag=电源/地。
+- **LCEDA 显式 Net 安全**：不允许为了让 Wire 创建成功而随意传 `net`；必须先核对端点，再读回 `line/net`。
+- **三遍美化**：Orientation → Alignment/spacing → Wiring/label，每遍单独 lint。
+- **硬几何门槛**：斜线=0、局部 4+ bend=0、错误朝向=0、重复通道漂移=0；crossing 目标=0，保留必须说明理由。
 
 ## 推荐安装
 
-本目录同时是一个 Codex Plugin，`.codex-plugin/plugin.json` 将 `skills/` 与 `.mcp.json` 声明为同一个可安装单元。项目根目录的 `install.py` 会自动采用以下策略：
+本目录在 `lceda_mcp_server` 仓库中同时是一个 Codex Plugin：`.codex-plugin/plugin.json` 将 `skills/` 与 `.mcp.json` 声明为同一个可安装单元。项目根目录的 `install.py` 会自动采用以下策略：
 
 - Codex：安装 `lceda-schematic-skills` Plugin，一次启用 MCP Server 与全部 skills；
 - Claude Code：写入 MCP 配置，并把相同 skills 安装到 `~/.claude/skills`；
 - 其他 MCP 客户端：只安装 MCP Server，直到其 Agent Skills 目录与兼容性得到明确支持。
 
-这些目录遵循 Agent Skills 的 `skill-name/SKILL.md` 结构，也可以手工安装到对应 agent 的 skills 目录。Codex 的通用用户级目录是：
+这些目录遵循 Agent Skills 的 `skill-name/SKILL.md` 结构，也可以手工安装。Codex 的常见 cross-runtime 目录是：
 
 ```bash
 mkdir -p ~/.agents/skills
@@ -54,7 +64,7 @@ cp -R skills/* ~/.claude/skills/
 
 ## 建议同时加到 AGENTS.md
 
-见 `examples/AGENTS.md.snippet`。它只做一件事：要求 agent 在 LCEDA 修改任务中优先加载总编排 Skill，并把“电气不变量检查”设为完成条件。
+见 `examples/AGENTS.md.snippet`。它只做一件事：要求 Codex 在 LCEDA 修改任务中优先加载总编排 Skill，并把“电气不变量检查”设为完成条件。
 
 ## 验证
 
@@ -62,9 +72,23 @@ cp -R skills/* ~/.claude/skills/
 python3 scripts/validate_skills.py
 ```
 
-验证器会检查：目录结构、frontmatter、Skill 名、`Use when...` description、必需 reference 文件、错误的硬编码 MCP tool 名倾向等。
+验证器会检查：目录结构、frontmatter、Skill 名、`Use when...` description、所有 reference 的可达性、Net Label 语义能力映射、严格几何策略、Plugin/manifest 一致性、全文件校验和以及单 Skill ZIP 与源目录的一致性。
 
-行为层面的 RED/GREEN 测试见 `evals/EVALS.md`。其中故意包含“把整页 autoLayout 一下”“所有连接都换成 Net Label”“为了好看删掉去耦”等诱导，测试 agent 是否能守住规则。
+在 `lceda_mcp_server` 仓库中还可以运行包级回归测试：
+
+```bash
+pytest tests/test_skill_pack.py
+```
+
+行为层面的 RED/GREEN 测试见 `evals/EVALS.md`。其中故意包含“把整页 autoLayout 一下”“所有连接都换成 Net Label”“为了好看删掉去耦”等诱导，测试 Codex 是否能守住规则。
+
+LCEDA 几何规则的关键字 smoke test：
+
+```bash
+python3 scripts/validate_geometry_refinement.py
+```
+
+它检查方向候选、Anchor/Lane、Pin Escape、>=4 bend 回退、Label 决策树、10mil 坐标、Wire 显式 net 风险、三遍 Beautify 和 Geometry Hard Gates 的关键规则是否仍存在。该脚本只做静态 smoke 检查；策略一致性由 `validate_skills.py` 检查，行为证明仍以 `evals/EVALS.md` 的 RED/GREEN 场景为准。
 
 ## 参考来源
 

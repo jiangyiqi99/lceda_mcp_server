@@ -3,73 +3,76 @@
 ## Hard electrical/operation gates
 
 ### H1 — Topology invariant
-For beautification: pre/post Netlist must be equivalent after normalizing irrelevant ordering/serialization differences.
+For geometry-only beautification, pre/post Netlist must be equivalent after irrelevant ordering differences are normalized.
 
 ### H2 — DRC regression
-No new DRC errors. Existing errors must be identified separately; do not silently claim they were introduced or fixed.
+No new DRC errors.
 
 ### H3 — Verified mutations
-Every write batch has a post-read or equivalent verification.
+Every write batch has post-read verification.
 
 ### H4 — No fabricated capability
 No tool, UUID, enum, library ID, net, pin position, or result was invented.
 
+## Hard geometry gates
+
+### G1 — Orthogonality
+`diagonal segment count = 0`.
+
+### G2 — Bend complexity
+Local wires with **4+ bends = 0**. A written rationale does not waive this gate. Three-bend wires are warnings. A route that cannot meet the hard gate must return to placement or a justified non-local abstraction; otherwise report the page as unfinished and do not declare completion.
+
+### G3 — Orientation
+`wrong-facing role component count = 0` for connectors/main-path passives/pull-decoupling branches and other components with an obvious role direction, unless intentionally exceptional.
+
+### G4 — Junction ambiguity
+Avoidable four-way connected junctions = 0. Pin-crowded branches without an escape stub are defects.
+
+### G5 — Repetition
+Repeated channels have no unexplained rotation, mirror, spacing, label-offset, or topology-layout outliers.
+
+### G6 — Collision
+Critical text/label/component/wire collisions = 0.
+
+### G7 — Crossing discipline
+Avoidable crossing count = 0. Every retained crossing has a reason; “routing was easier” is not a reason.
+
 ## Visual score: 100 points
 
 ### 1. Signal flow — 20
-- 18–20: main path obvious; exceptions (feedback/bidirectional) self-explanatory.
-- 12–17: understandable with minor backtracking.
-- <12: frequent reverse tracing or scattered path.
+- main path reads naturally;
+- main-chain anchors progress monotonically where semantics permit;
+- feedback/bidirectional exceptions are clear.
 
 ### 2. Wiring/topology visibility — 20
-- short orthogonal local wires;
+- short orthogonal wires;
+- 0–2 bend norm;
+- straight pin escapes;
 - minimal crossings;
-- few bends;
-- clear junctions;
-- no label soup.
+- clear T-junctions;
+- no Net Label Soup.
 
 ### 3. Grouping & whitespace — 15
-- functional units visually coherent;
-- unrelated blocks separated;
-- no crowded islands or detached support parts.
+- strong relationships cluster;
+- unrelated blocks separate;
+- support ownership is obvious.
 
 ### 4. Alignment & consistency — 15
-- grid alignment;
-- stable orientations;
-- consistent label/ref/value offsets;
-- repeated channels repeat visually.
+- stable grid/lanes;
+- role-consistent orientation;
+- repeated channels use common ΔX/ΔY and offsets.
 
 ### 5. Naming & abstraction — 10
-- meaningful net names;
-- project-consistent active-low/differential/clock/power syntax;
-- correct use of label/port/power abstraction.
+- meaningful project-consistent names;
+- Wire/Label/Port/NetFlag selection matches scope.
 
 ### 6. Power/support clarity — 10
-- power domains visible;
-- decoupling ownership clear;
-- pull/termination/clock/reset support located near owners.
+- power above, ground below where practical;
+- decoupling/pull/termination/clock/reset networks remain visibly attached to owners.
 
 ### 7. Documentation — 10
-- concise block titles and intent notes;
+- concise titles/intent notes;
 - important expected values/variants/test points visible;
-- no prose clutter.
+- no prose or decorative clutter.
 
-**Pass target: ≥85**, but hard gates dominate the numeric score.
-
-## Anti-gaming rules
-
-Do not improve score by:
-- deleting electrically required parts;
-- hiding connections behind excessive labels;
-- renaming nets away from established project convention;
-- shrinking text below readable size;
-- adding boxes/colors that only create decorative hierarchy;
-- moving schematic items to mimic PCB physical layout.
-
-## Optional rendered checks
-
-When export/render is genuinely available:
-- inspect zoom-to-fit architecture;
-- inspect labels for overlap;
-- inspect grayscale/black-white readability if possible;
-- verify margins and page density.
+**Target >=90 after refinement.** Hard gates dominate the score.
